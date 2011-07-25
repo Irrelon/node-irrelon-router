@@ -60,7 +60,7 @@ server.on('upgrade', function(req, socket, head) {
 });
 
 // Load the initial config data
-var configFilePath = '/ige/igeRouter/config.js';
+var configFilePath = './config.js';
 loadConfigData(function () {
 	// Config data was loaded so... start the server
 	server.listen(serverPort);
