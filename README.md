@@ -22,6 +22,25 @@ In the example config.js file included with this repo, three entries all map tho
 
 As you can see this allows you to run many servers on different ports and route connections to them all from a single port based upon the domain names defined in your config.js file.
 
+    serverPort = 80;
+    
+    /* ROUTERTABLE-START */
+    routerTable = {
+	'isocity.isogenicengine.com': {
+		host:'localhost',
+		port:9000,
+	},
+	'isocity.co.uk': {
+		host:'localhost',
+		port:9000,
+	},
+	'www.isocity.co.uk': {
+		host:'localhost',
+		port:9000,
+	},
+    }
+    /* ROUTERTABLE-END */
+
 # Run the router
 
 You can run the router via node with:
