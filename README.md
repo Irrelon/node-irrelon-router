@@ -8,6 +8,8 @@ First install node-http-proxy:
 
 ## Clone this repo and configure your new router
 
+    git clone git://github.com/coolbloke1324/node-irrelon-router.git
+
 Modify the config.js file to the settings you require. You can modify this file at any time and the router will automatically update the internal settings with the new content. This is useful if you want to add or remove routes on the fly!
 
     nano config.js
