@@ -1,5 +1,11 @@
 # Create routes via domain names with node.js
 
+This node.js server will listen for connections and route those connections to other hosts and ports based upon the domain name being used to connect and the router mapping table that you define.
+
+The server will automatically update its mapping table when the configuration file is updated meaning you can use it to create new routes or modify existing routes without shutting down the router and therefore causing loss of connection to anyone currently connected.
+
+This is very useful for setting up new user accounts on a domain and using sub-domains to map their account to a node.js instance etc.
+
 ## How to use
 
 First install node-http-proxy:
