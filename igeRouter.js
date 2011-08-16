@@ -1,3 +1,11 @@
+///////////////////////////////////////////
+// Set the path to your config file here //
+///////////////////////////////////////////
+var configFilePath = '/ige/igeRouter/config.js';
+
+////////////////////////////////////////////////////////////////////////////
+// Don't modify anything below here unless you know what you are doing :) //
+////////////////////////////////////////////////////////////////////////////
 var http = require('http'),
 	httpProxy = require('http-proxy'),
 	fs = require('fs');
@@ -60,7 +68,6 @@ server.on('upgrade', function(req, socket, head) {
 });
 
 // Load the initial config data
-var configFilePath = './config.js';
 loadConfigData(function () {
 	// Config data was loaded so... start the server
 	server.listen(serverPort);
