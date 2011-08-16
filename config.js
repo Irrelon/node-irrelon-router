@@ -1,5 +1,3 @@
-serverPort = 80;
-
 /* ROUTERTABLE-START */
 routerTable = {
 	'isocity.isogenicengine.com': {
