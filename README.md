@@ -24,8 +24,6 @@ Modify the config.js file to the settings you require. You can modify this file 
 
     nano config.js
 
-The serverPort property sets the port that the router will listen on. If you want to route connections from normal HTTP requests to other servers, run it on the default setting of port 80.
-
 The routerTable object contains the domain names that the router will match when routing connections, then the target host and port to route to.
 
 In the example config.js file included with this repo, three entries all map those domain names to the internal server running on port 9000.
