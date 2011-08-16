@@ -16,6 +16,10 @@ First install node-http-proxy:
 
     git clone git://github.com/coolbloke1324/node-irrelon-router.git
 
+Modify the igeRouter.js file to set the two variables "configFilePath" and "serverPort". configFilePath should be the absolute path to your config.js file. serverPort determines which port the router will listen on.
+
+    nano igeRouter.js
+
 Modify the config.js file to the settings you require. You can modify this file at any time and the router will automatically update the internal settings with the new content. This is useful if you want to add or remove routes on the fly!
 
     nano config.js
@@ -27,8 +31,6 @@ The routerTable object contains the domain names that the router will match when
 In the example config.js file included with this repo, three entries all map those domain names to the internal server running on port 9000.
 
 As you can see this allows you to run many servers on different ports and route connections to them all from a single port based upon the domain names defined in your config.js file.
-
-    serverPort = 80;
     
     /* ROUTERTABLE-START */
     routerTable = {
