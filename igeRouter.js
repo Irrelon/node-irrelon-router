@@ -2,6 +2,7 @@
 // Set the path to your config file here //
 ///////////////////////////////////////////
 var configFilePath = '/ige/igeRouter/config.js';
+var serverPort = 80;
 
 ////////////////////////////////////////////////////////////////////////////
 // Don't modify anything below here unless you know what you are doing :) //
