@@ -46,6 +46,12 @@ As you can see this allows you to run many servers on different ports and route 
 	},
     }
     /* ROUTERTABLE-END */
+    
+    // You can also just add new entries like this (which is easier to alter later):
+    routerTable = {};
+    routerTable['isocity.isogenicengine.com'] = { host:'localhost', port:9000 }
+    routerTable['isocity.co.uk'] = { host:'localhost', port:9000 }
+    routerTable['www.isocity.co.uk'] = { host:'localhost', port:9000 }
 
 # Run the router
 
