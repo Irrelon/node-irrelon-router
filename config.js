@@ -1,16 +1,4 @@
-/* ROUTERTABLE-START */
-routerTable = {
-	'isocity.isogenicengine.com': {
-		host:'localhost',
-		port:9000,
-	},
-	'isocity.co.uk': {
-		host:'localhost',
-		port:9000,
-	},
-	'www.isocity.co.uk': {
-		host:'localhost',
-		port:9000,
-	},
-}
-/* ROUTERTABLE-END */
+routerTable = {};
+routerTable['isocity.isogenicengine.com'] = { host:'localhost', port:9000 }
+routerTable['isocity.co.uk'] = { host:'localhost', port:9000 }
+routerTable['www.isocity.co.uk'] = { host:'localhost', port:9000 }
