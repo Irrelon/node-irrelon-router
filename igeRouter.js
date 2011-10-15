@@ -1,6 +1,6 @@
-////////////////////////////////////
-// Set the port to listen on here //
-////////////////////////////////////
+///////////////////////////////////////////
+// Set the port you want to listen on here
+///////////////////////////////////////////
 var serverPort = 80;
 
 ////////////////////////////////////////////////////////////////////////////
@@ -62,11 +62,26 @@ server.on('upgrade', function(req, socket, head) {
 			proxy.proxyWebSocketRequest(req, socket, head, route);
 		} else {
 			console.log('Cannot route ' + req.headers.host + ' because config entry is missing either "host" or "port" properties.');
+		}
+	} else {
+		console.log('Cannot upgrade socket for websockets because the header host does not exist in the routing table!', req.headers);
+	}
+});
+
+proxy.on('proxyError', function (err, req, res) {
+	if (routerTable[req.headers.host] != null) {
+		var route = routerTable[req.headers.host];
+		if (route.errorRedirect) {
+			res.writeHead(302, {'Location': route.errorRedirect});
+			res.end();
+		} else {
 			do404(res);
 		}
 	} else {
 		do404(res);
 	}
+	
+	return true;
 });
 
 // Load the initial config data
