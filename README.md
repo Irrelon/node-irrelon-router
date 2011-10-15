@@ -16,9 +16,13 @@ First install node-http-proxy:
 
     git clone git://github.com/coolbloke1324/node-irrelon-router.git
 
+## Set the server port number
+
 Modify the igeRouter.js file to set the two variables "configFilePath" and "serverPort". configFilePath should be the absolute path to your config.js file. serverPort determines which port the router will listen on.
 
     nano igeRouter.js
+
+## Set your router configuration
 
 Modify the config.js file to the settings you require. You can modify this file at any time and the router will automatically update the internal settings with the new content. This is useful if you want to add or remove routes on the fly!
 
@@ -54,11 +58,29 @@ You can also just add new entries like this (which is easier to alter later):
     routerTable['isocity.co.uk'] = { host:'localhost', port:9000 }
     routerTable['www.isocity.co.uk'] = { host:'localhost', port:9000 }
 
+## Adding error redirection
+
+When a route is unavailable such as when the target host and port do not respond (maybe the target server is down etc) then you can get the client to automatically redirect to another url. To do this, add an "errorRedirect" key to the target object like so:
+
+    routerTable['www.isocity.co.uk'] = { host:'localhost', port:9000, errorRedirect:'http://www.isogenicengine.com/demo/isocity-maintenance/' }
+
 # Run the router
 
 You can run the router via node with:
 
     node igeRouter.js
+
+## Updates
+
+You can update the config.js file at any time and the router will automatically reload the router table data.
+
+# Future upgrades
+
+If you're feeling particularly helpful and creative, here are some thoughts for upgrades to this project:
+
+* Logging, separated into successful requests and error requests
+* Array of target host / ports for round-robin load balancing
+* Google analytics logging using a node google analytics module
 
 #License
 
