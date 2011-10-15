@@ -85,7 +85,7 @@ If you're feeling particularly helpful and creative, here are some thoughts for 
 
 #License
 
-This plugin and all code contained is Copyright 2011 Irrelon Software Limited. You are granted a license to use this code / software as you wish, free of charge and free of restrictions.
+This project and all code contained is Copyright 2011 Irrelon Software Limited. You are granted a license to use this code / software as you wish, free of charge and free of restrictions.
 
 If you like this project, please consider Flattr-ing it! http://bit.ly/qStA2P
 
