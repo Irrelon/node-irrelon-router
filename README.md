@@ -78,6 +78,7 @@ You can update the config.js file at any time and the router will automatically 
 
 If you're feeling particularly helpful and creative, here are some thoughts for upgrades to this project:
 
+* Different routes based upon server mode (such as 'testing' or 'production')
 * Logging, separated into successful requests and error requests
 * Array of target host / ports for round-robin load balancing
 * Google analytics logging using a node google analytics module
