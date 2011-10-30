@@ -8,10 +8,8 @@ var serverPort = 80;
 ////////////////////////////////////////////////////////////////////////////
 var configFilePath = __dirname + '/config.js';
 
-var http = require('http'),
-	httpProxy = require('http-proxy'),
-	fs = require('fs');
-var proxy = new httpProxy.HttpProxy();
+var http = require('http'), httpProxy = require('http-proxy'), fs = require('fs');
+var proxy = new httpProxy.RoutingProxy();
 var routerTable = {}
 
 var loadConfigData = function (callback) {
