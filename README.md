@@ -33,25 +33,6 @@ The routerTable object contains the domain names that the router will match when
 In the example config.js file included with this repo, three entries all map those domain names to the internal server running on port 9000.
 
 As you can see this allows you to run many servers on different ports and route connections to them all from a single port based upon the domain names defined in your config.js file.
-    
-    /* ROUTERTABLE-START */
-    routerTable = {
-	'isocity.isogenicengine.com': {
-		host:'localhost',
-		port:9000,
-	},
-	'isocity.co.uk': {
-		host:'localhost',
-		port:9000,
-	},
-	'www.isocity.co.uk': {
-		host:'localhost',
-		port:9000,
-	},
-    }
-    /* ROUTERTABLE-END */
-    
-You can also just add new entries like this (which is easier to alter later):
 
     routerTable = {};
     routerTable['isocity.isogenicengine.com'] = { host:'localhost', port:9000 }
