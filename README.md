@@ -4,7 +4,9 @@ This node.js server will listen for connections and route those connections to o
 
 The server will automatically update its mapping table when the configuration file is updated meaning you can use it to create new routes or modify existing routes without shutting down the router and therefore causing loss of connection to anyone currently connected.
 
-This is very useful for setting up new user accounts on a domain and using sub-domains to map their account to a node.js instance etc.
+This is very useful for running many server applications behind a single IP address and port that need to respond to different domain names. For instance you can have www.mydomain.com point at your IP address 8.12.14.2 and any requests to www can route to your internal port 81 where you have a web server listening. Then you could have store.mydomain.com pointing to the same IP 8.12.14.2 and have it internally route to port 82.
+
+In the case of Isogenic Engine, this router is used to allow a single port (80) load from different internal Node.js instances depending on the domain. This allows one physical server to serve multiple sub-domains from different internal listeners.
 
 ## How to use
 
