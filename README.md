@@ -14,7 +14,7 @@ First clone this repo:
 
     git clone git://github.com/coolbloke1324/node-irrelon-router.git
 
-## Install http-proxy
+Then install http-proxy:
 
     npm install
 
