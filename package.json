@@ -1,0 +1,7 @@
+{
+  "name": "node-irrelon-router",
+  "version": "0.1.0",
+  "dependencies": {
+    "http-proxy": "1.0.x"
+  }
+}
