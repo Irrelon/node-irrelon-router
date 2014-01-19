@@ -10,19 +10,19 @@ In the case of Isogenic Engine, this router is used to allow a single port (80) 
 
 ## How to use
 
-First install node-http-proxy:
-
-    npm install http-proxy
-
-## Clone this repo and configure your new router
+First clone this repo:
 
     git clone git://github.com/coolbloke1324/node-irrelon-router.git
 
+Then install http-proxy:
+
+    npm install
+
 ## Set the server port number
 
-Modify the igeRouter.js file to set the two variables "configFilePath" and "serverPort". configFilePath should be the absolute path to your config.js file. serverPort determines which port the router will listen on.
+Modify the router.js file to set the two variables "configFilePath" and "serverPort". configFilePath should be the absolute path to your config.js file. serverPort determines which port the router will listen on.
 
-    nano igeRouter.js
+    nano router.js
 
 ## Set your router configuration
 
@@ -37,21 +37,21 @@ In the example config.js file included with this repo, three entries all map tho
 As you can see this allows you to run many servers on different ports and route connections to them all from a single port based upon the domain names defined in your config.js file.
 
     routerTable = {};
-    routerTable['isocity.isogenicengine.com'] = { host:'localhost', port:9000 }
-    routerTable['isocity.co.uk'] = { host:'localhost', port:9000 }
-    routerTable['www.isocity.co.uk'] = { host:'localhost', port:9000 }
+    routerTable['isocity.isogenicengine.com'] = { target:'http://localhost:9000' }
+    routerTable['isocity.co.uk'] = { target:'http://localhost:9000' }
+    routerTable['www.isocity.co.uk'] = { target:'http://localhost:9000' }
 
 ## Adding error redirection
 
 When a route is unavailable such as when the target host and port do not respond (maybe the target server is down etc) then you can get the client to automatically redirect to another url. To do this, add an "errorRedirect" key to the target object like so:
 
-    routerTable['www.isocity.co.uk'] = { host:'localhost', port:9000, errorRedirect:'http://www.isogenicengine.com/demo/isocity-maintenance/' }
+    routerTable['www.isocity.co.uk'] = { target:'http://localhost:9000', errorRedirect:'http://www.isogenicengine.com/demo/isocity-maintenance/' }
 
 # Run the router
 
 You can run the router via node with:
 
-    node igeRouter.js
+    node router.js
 
 ## Updates
 
