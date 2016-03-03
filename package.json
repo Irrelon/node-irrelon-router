@@ -2,6 +2,15 @@
   "name": "node-irrelon-router",
   "version": "0.1.0",
   "dependencies": {
+    "async": "^1.5.2",
+    "colors": "^1.1.2",
+    "express": "^4.13.4",
+    "forever": "^0.15.1",
     "http-proxy": "1.11.x"
+  },
+  "scripts": {
+    "start": "forever start router.js",
+    "test": "node router.js",
+    "stop": "forever stop router.js"
   }
 }
