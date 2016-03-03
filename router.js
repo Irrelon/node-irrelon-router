@@ -1,27 +1,28 @@
-///////////////////////////////////////////
-// Set the port you want to listen on here
-///////////////////////////////////////////
-var serverPort = 80;
-
 ////////////////////////////////////////////////////////////////////////////
 // Don't modify anything below here unless you know what you are doing :) //
 ////////////////////////////////////////////////////////////////////////////
-var configFilePath = __dirname + '/config.js';
+var http = require('http'),
+	httpProxy = require('http-proxy'),
+	fs = require('fs'),
+	proxy = httpProxy.createProxyServer({}),
+	routerTable = {},
+	configFilePath,
+	serverPort;
 
-var http = require('http'), httpProxy = require('http-proxy'), fs = require('fs');
-var proxy = httpProxy.createProxyServer({});
-var routerTable = {}
+configFilePath = __dirname + '/config.json';
 
 var loadConfigData = function (callback) {
-	var self = this;
 	fs.readFile(configFilePath, 'utf8', function (err, data) {
 		if (err) { console.log('Error reading router config file: ' + err); } else {
-			eval(data);
+			data = JSON.parse(data);
+
+			routerTable = data.routerTable;
+
 			console.log('Router table config data updated successfully.');
 		}
 		if (typeof callback == 'function') { callback(); }
 	});
-}
+};
 
 var configFileEvent = function (curr, prev) {
 	if (curr.mtime != prev.mtime) {
@@ -29,13 +30,13 @@ var configFileEvent = function (curr, prev) {
 		console.log('Router table config data has changed, updating...');
 		loadConfigData();
 	}
-}
+};
 
 var do404 = function (res) {
 	res.writeHead(404);
 	res.write('Nothing to serve from here. Sorry! (Error 404)');
 	res.end();
-}
+};
 
 var server = http.createServer(function (req, res) {
 	// Check for an entry in the router table
