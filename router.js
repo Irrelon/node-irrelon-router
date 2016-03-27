@@ -33,15 +33,13 @@ var configFileEvent = function (curr, prev) {
 };
 
 var do404 = function (res) {
-	res.writeHead(404);
-	res.header("Content-Type", "application/json; charset=utf-8");
+	res.writeHead(404, {'Content-Type': 'text/plain; charset=utf-8'});
 	res.write('Nothing to serve from here. Sorry! (Error 404)');
 	res.end();
 };
 
 var do500 = function (res) {
-	res.writeHead(500);
-	res.header("Content-Type", "application/json; charset=utf-8");
+	res.writeHead(500, {'Content-Type': 'text/plain; charset=utf-8'});
 	res.write('Server is donw. Sorry! (Error 404)');
 	res.end();
 }
