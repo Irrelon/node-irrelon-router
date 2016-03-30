@@ -33,17 +33,26 @@ var configFileEvent = function (curr, prev) {
 };
 
 var do404 = function (res) {
-	res.writeHead(404);
+	res.writeHead(404, {'Content-Type': 'text/plain; charset=utf-8'});
 	res.write('Nothing to serve from here. Sorry! (Error 404)');
 	res.end();
 };
+
+var do500 = function (res) {
+	res.writeHead(500, {'Content-Type': 'text/plain; charset=utf-8'});
+	res.write('Server is donw. Sorry! (Error 404)');
+	res.end();
+}
 
 var server = http.createServer(function (req, res) {
 	// Check for an entry in the router table
 	if (routerTable[req.headers.host] != null) {
 		var route = routerTable[req.headers.host];
 		if (route.target) {
-			proxy.web(req, res, route);
+			proxy.web(req, res, route, function(e){
+				console.log(e);
+				do500(res)
+			});
 		} else {
 			console.log('Cannot route ' + req.headers.host + ' because config entry is missing "target" property.');
 			do404(res);
@@ -58,7 +67,10 @@ server.on('upgrade', function(req, socket, head) {
 	if (routerTable[req.headers.host] != null) {
 		var route = routerTable[req.headers.host];
 		if (route.target) {
-			proxy.ws(req, socket, head, route);
+			proxy.ws(req, socket, head, route, function(e){
+				console.log(e);
+				do500(res)
+			});
 		} else {
 			console.log('Cannot route ' + req.headers.host + ' because config entry is missing "target" property.');
 		}
