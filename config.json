@@ -1,9 +1,0 @@
-{
-	"server": {
-		"port": 80
-	},
-	"routerTable": {
-		"git.irrelon.com": "http://localhost:10200"
-	},
-	"error": "http://www.google.com"
-}
