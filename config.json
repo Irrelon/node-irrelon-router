@@ -3,6 +3,9 @@
 		"httpPort": 80,
 		"httpsPort": 443
 	},
+	"letsencrypt": {
+		"email": "rob@irrelon.com"
+	},
 	"routerTable": {
 		"git.irrelon.com": {
 			"target": "http://localhost:10200",
