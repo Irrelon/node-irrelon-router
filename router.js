@@ -3,9 +3,13 @@ var http = require('http'),
 	httpProxy = require('http-proxy'),
 	async = require('async'),
 	crypto = require('crypto'),
+	tls = require('tls'),
 	express = require('express'),
 	spawn = require('child_process').spawn,
+	spawnSync = require('spawn-sync'),
 	fs = require('fs'),
+	fsAccess = require('fs-access'),
+	mkdirp = require('mkdirp'),
 	colors = require('colors'),
 	proxy,
 	configFilePath,
@@ -60,6 +64,11 @@ Router.prototype.loadConfigData = function (callback) {
 								// Check if the route is secured via TLS
 								if (route.ssl && route.ssl.enable) {
 									if (route.ssl.generate) {
+										asyncTasks.push(function (asyncTaskComplete) {
+											mkdirp('./ssl', function (err) {
+												asyncTaskComplete(false);
+											});
+										});
 										asyncTasks.push(function (i) {
 											return function (asyncTaskComplete) {
 												// We need to check for certificates and
@@ -72,52 +81,77 @@ Router.prototype.loadConfigData = function (callback) {
 														self.secureContext[domain] = self.getSecureContext(domain);
 													} else {
 														// We need to generate the certificates
-														console.log('Certificates for ' + domain + ' do not exist, moving to create...');
+														if (self.configData.letsencrypt && self.configData.letsencrypt.email) {
+															console.log('Certificates for ' + domain + ' do not exist, moving to create (' + self.configData.letsencrypt.email + ')...');
 
-														// Execute letsencrypt to generate certificates
-														console.log('Executing: ' + 'letsencrypt certonly --agree-tos --email rob@irrelon.com --standalone --domains ' + domain + ' --cert-path ./ssl/:hostname.cert.pem --fullchain-path ./ssl/:hostname.fullchain.pem --chain-path ./ssl/:hostname.chain.pem');
-														child = spawn('letsencrypt', [
-															'certonly',
-															'--agree-tos',
-															'--email', 'rob@irrelon.com',
-															'--standalone',
-															'--domains', domain,
-															'--cert-path',  './ssl/:hostname.cert.pem',
-															'--fullchain-path', './ssl/:hostname.fullchain.pem',
-															'--chain-path', './ssl/:hostname.chain.pem'
-														]);
+															// Execute letsencrypt to generate certificates
+															console.log('Executing: ' + 'letsencrypt certonly --agree-tos --email ' + self.configData.letsencrypt.email + ' --standalone --domains ' + domain + ' --cert-path ./ssl/:hostname.cert.pem --fullchain-path ./ssl/:hostname.fullchain.pem --chain-path ./ssl/:hostname.chain.pem');
+															child = spawn('letsencrypt', [
+																'certonly',
+																'--agree-tos',
+																'--email', self.configData.letsencrypt.email,
+																'--standalone',
+																'--domains', domain,
+																'--cert-path', './ssl/:hostname.cert.pem',
+																'--fullchain-path', './ssl/:hostname.fullchain.pem',
+																'--chain-path', './ssl/:hostname.chain.pem'
+															]);
 
-														child.stderr.on("data", function (data) {
-															console.log('Process -> ' + data);
-														});
+															child.stderr.on("data", function (data) {
+																console.log('Process -> ' + data);
+															});
 
-														child.on("exit", function (code) {
-															console.log('Process terminated with code ' + code);
-															self.secureContext[domain] = self.getSecureContext(domain);
-															asyncTaskComplete(false);
-														});
+															child.on("exit", function (code) {
+																console.log('Process terminated with code ' + code);
 
-														child.on("close", function (code) {
-															console.log('Process terminated with code ' + code);
-															self.secureContext[domain] = self.getSecureContext(domain);
-															asyncTaskComplete(false);
-														});
+																spawnSync('mv', [
+																	'/root/letsencrypt/etc/live/' + domain + '/privkey.pem',
+																	'./ssl/' + domain + '.key.pem'
+																]);
 
-														child.on("error", function (e) {
-															console.log('Process error: ' + e);
-															child.kill();
-															asyncTaskComplete(false);
-														});
+																self.secureContext[domain] = self.getSecureContext(domain);
+																asyncTaskComplete(false);
+															});
 
-														//child = spawnSync('mv /root/letsencrypt/etc/live/' + domain + '/privkey.pem ./ssl/' + domain + '.key.pem');
-														//
+															child.on("close", function (code) {
+																console.log('Process closed with code ' + code);
 
+																spawnSync('mv', [
+																	'/root/letsencrypt/etc/live/' + domain + '/privkey.pem',
+																	'./ssl/' + domain + '.key.pem'
+																]);
+
+																self.secureContext[domain] = self.getSecureContext(domain);
+																asyncTaskComplete(false);
+															});
+
+															child.on("error", function (e) {
+																console.log('Process error: ' + e);
+																child.kill();
+																asyncTaskComplete(false);
+															});
+														} else {
+															console.log('Certificates for ' + domain + ' do not exist but could not auto-create!', 'Config file is missing letsencrypt.email parameter!');
+															asyncTaskComplete('Config file is missing letsencrypt.email parameter!');
+														}
 													}
 												});
 											}
 										}(i));
 									} else {
-										self.secureContext[i] = self.getSecureContext(i);
+										asyncTasks.push(function (i) {
+											return function (asyncTaskComplete) {
+												self.checkSecureContext(i, function (err, domain) {
+													if (!err) {
+														self.secureContext[domain] = self.getSecureContext(domain);
+														asyncTaskComplete(false);
+													} else {
+														console.log('Unable to load ssl cert for domain: ' + i + ' and auto-generate is switched off!');
+													}
+												});
+											};
+										}(i));
+
 									}
 								}
 
@@ -165,24 +199,46 @@ Router.prototype.do404 = function (res) {
 };
 
 Router.prototype.checkSecureContext = function (domain, callback) {
-	fs.access(__dirname + '/ssl/' + domain + '.key', fs.F_OK, function (err) {
+	console.log('Checking for existing file: ' + __dirname + '/ssl/' + domain + '.key.pem');
+	fsAccess(__dirname + '/ssl/' + domain + '.key.pem', function (err) {
 		callback(err, domain);
 	});
 };
 
 Router.prototype.getSecureContext = function (domain) {
-	return crypto.createCredentials({
-		key:  fs.readFileSync(__dirname + '/ssl/' + domain + '.key.pem'),
-		cert: fs.readFileSync(__dirname + '/ssl/' + domain + '.fullchain.pem')
-	}).context;
+	var cryptoData;
+	var credentials = {
+		key: fs.readFileSync(__dirname + '/ssl/' + domain + '.key.pem'),
+		cert: fs.readFileSync(__dirname + '/ssl/' + domain + '.fullchain.pem'),
+		ca: fs.readFileSync(__dirname + '/ssl/' + domain + '.chain.pem')
+	};
+
+	if (tls.createSecureContext) {
+		cryptoData = tls.createSecureContext(credentials);
+	} else {
+		cryptoData = crypto.createCredentials(credentials);
+	}
+
+	console.log('Got crypto', cryptoData);
+
+	return cryptoData;
 };
 
 Router.prototype.setupServer = function (callback) {
 	var self = this;
 
 	self.httpsServer = https.createServer({
-		SNICallback: function (domain) {
-			return self.secureContext[domain];
+		key: fs.readFileSync(__dirname + "/ssl/www.irrelon.com.key.pem"),
+		cert: fs.readFileSync(__dirname + "/ssl/www.irrelon.com.cert.pem"),
+		SNICallback: function (domain, callback) {
+			console.log('Getting secure context for domain: ' + domain);
+			if (callback) {
+				console.log('Calling back with:', self.secureContext[domain]);
+				callback(null, self.secureContext[domain]);
+			} else {
+				console.log('Returning with:', self.secureContext[domain]);
+				return self.secureContext[domain];
+			}
 		}
 	}, function (req, res) {
 		self.handleRequest.call(self, req, res);
