@@ -152,7 +152,8 @@ Router.prototype.configFileEvent = function (curr, prev) {
 };
 
 Router.prototype.do404 = function (res) {
-	var errMsg = "Service not found";
+	var self = this,
+		errMsg = "Service not found";
 
 	if (self.configData.errors) {
 		errMsg = self.configData.errors["404"] || errMsg;
