@@ -1,9 +1,68 @@
 {
 	"server": {
-		"port": 80
+		"httpPort": 80,
+		"httpsPort": 443
 	},
 	"routerTable": {
-		"git.irrelon.com": "http://localhost:10200"
+		"git.irrelon.com": {
+			"target": "http://localhost:10200",
+			"ssl": {
+				"enable": false,
+				"generate": false
+			}
+		},
+		"gigaplex.irrelon.com": {
+			"target": "http://localhost:8090",
+			"ssl": {
+				"enable": false,
+				"generate": false
+			}
+		},
+		"chat.irrelon.com": {
+			"target": "http://localhost:10800",
+			"ssl": {
+				"enable": false,
+				"generate": false
+			}
+		},
+		"nvr.irrelon.com": {
+			"target": "http://localhost:8888",
+			"ssl": {
+				"enable": false,
+				"generate": false
+			}
+		},
+		"nvr-api.irrelon.com": {
+			"target": "http://localhost:8888",
+			"ssl": {
+				"enable": false,
+				"generate": false
+			}
+		},
+		"zway.irrelon.com": {
+			"target": "http://localhost:8083",
+			"ssl": {
+				"enable": false,
+				"generate": true
+			}
+		},
+		"homenet-api.irrelon.com": {
+			"target": "http://localhost:8000",
+			"ssl": {
+				"enable": false,
+				"generate": false
+			}
+		},
+		"homenet-sse.irrelon.com": {
+			"target": "http://localhost:8022",
+			"ssl": {
+				"enable": false,
+				"generate": false
+			}
+		}
 	},
-	"error": "http://www.google.com"
+	"errors": {
+		"404": "404 Not found"
+	},
+	"errorRedirect": "http://www.google.com"
 }
