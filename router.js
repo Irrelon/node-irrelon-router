@@ -74,11 +74,13 @@ Router.prototype.loadConfigData = function (callback) {
 												// We need to check for certificates and
 												// auto-generate if they don't exist
 												self.checkSecureContext(i, function (err, domain) {
-													var child;
+													var child,
+														calledCallback = false;
 
 													if (!err) {
 														// Certificates already exist, use them
 														self.secureContext[domain] = self.getSecureContext(domain);
+														asyncTaskComplete(false);
 													} else {
 														// We need to generate the certificates
 														if (self.configData.letsencrypt && self.configData.letsencrypt.email) {
@@ -97,38 +99,41 @@ Router.prototype.loadConfigData = function (callback) {
 																'--chain-path', './ssl/:hostname.chain.pem'
 															]);
 
+															var finishFunc = function (code, type) {
+																console.log('Process ' + type + ' with code ' + code);
+
+																if (!calledCallback) {
+																	spawnSync('mv', [
+																		'/root/letsencrypt/etc/live/' + domain + '/privkey.pem',
+																		'./ssl/' + domain + '.key.pem'
+																	]);
+
+																	self.secureContext[domain] = self.getSecureContext(domain);
+
+																	calledCallback = true;
+																	asyncTaskComplete(false);
+																}
+															};
+
 															child.stderr.on("data", function (data) {
 																console.log('Process -> ' + data);
 															});
 
 															child.on("exit", function (code) {
-																console.log('Process terminated with code ' + code);
-
-																spawnSync('mv', [
-																	'/root/letsencrypt/etc/live/' + domain + '/privkey.pem',
-																	'./ssl/' + domain + '.key.pem'
-																]);
-
-																self.secureContext[domain] = self.getSecureContext(domain);
-																asyncTaskComplete(false);
+																finishFunc(code, 'exit');
 															});
 
 															child.on("close", function (code) {
-																console.log('Process closed with code ' + code);
-
-																spawnSync('mv', [
-																	'/root/letsencrypt/etc/live/' + domain + '/privkey.pem',
-																	'./ssl/' + domain + '.key.pem'
-																]);
-
-																self.secureContext[domain] = self.getSecureContext(domain);
-																asyncTaskComplete(false);
+																finishFunc(code, 'close');
 															});
 
 															child.on("error", function (e) {
 																console.log('Process error: ' + e);
 																child.kill();
-																asyncTaskComplete(false);
+
+																if (!calledCallback) {
+																	asyncTaskComplete(false);
+																}
 															});
 														} else {
 															console.log('Certificates for ' + domain + ' do not exist but could not auto-create!', 'Config file is missing letsencrypt.email parameter!');
@@ -151,7 +156,6 @@ Router.prototype.loadConfigData = function (callback) {
 												});
 											};
 										}(i));
-
 									}
 								}
 
@@ -163,9 +167,9 @@ Router.prototype.loadConfigData = function (callback) {
 					}
 
 					async.series(asyncTasks, function () {
-						console.log('Async complete');
+						//console.log('Async complete');
 
-						console.log(colors.cyan.bold('Router table config data updated successfully.'));
+						console.log(colors.yellow.bold('Router table config data updated successfully.'));
 
 						if (callback) {
 							callback(false);
@@ -183,19 +187,6 @@ Router.prototype.configFileEvent = function (curr, prev) {
 		console.log(colors.cyan.bold('Router table config data has changed, updating...'));
 		this.loadConfigData();
 	}
-};
-
-Router.prototype.do404 = function (res) {
-	var self = this,
-		errMsg = "Service not found";
-
-	if (self.configData.errors) {
-		errMsg = self.configData.errors["404"] || errMsg;
-	}
-
-	res.writeHead(404);
-	res.write(errMsg);
-	res.end();
 };
 
 Router.prototype.checkSecureContext = function (domain, callback) {
@@ -216,10 +207,10 @@ Router.prototype.getSecureContext = function (domain) {
 	if (tls.createSecureContext) {
 		cryptoData = tls.createSecureContext(credentials);
 	} else {
-		cryptoData = crypto.createCredentials(credentials);
+		cryptoData = crypto.createCredentials(credentials).context;
 	}
 
-	console.log('Got crypto', cryptoData);
+	//console.log('Got crypto', cryptoData);
 
 	return cryptoData;
 };
@@ -227,26 +218,29 @@ Router.prototype.getSecureContext = function (domain) {
 Router.prototype.setupServer = function (callback) {
 	var self = this;
 
+	// TODO: We need to generate default server certs here
+
 	self.httpsServer = https.createServer({
 		key: fs.readFileSync(__dirname + "/ssl/www.irrelon.com.key.pem"),
 		cert: fs.readFileSync(__dirname + "/ssl/www.irrelon.com.cert.pem"),
 		ca: fs.readFileSync(__dirname + "/ssl/www.irrelon.com.chain.pem"),
+
 		SNICallback: function (domain, callback) {
-			console.log('Getting secure context for domain: ' + domain);
+			//console.log('Getting secure context for domain: ' + domain);
 			if (callback) {
-				console.log('Calling back with:', self.secureContext[domain]);
+				//console.log('Calling back with:', self.secureContext[domain]);
 				callback(null, self.secureContext[domain]);
 			} else {
-				console.log('Returning with:', self.secureContext[domain]);
+				//console.log('Returning with:', self.secureContext[domain]);
 				return self.secureContext[domain];
 			}
 		}
 	}, function (req, res) {
-		self.handleRequest.call(self, req, res);
+		self.handleRequest.call(self, true, req, res);
 	});
 
 	self.httpServer = http.createServer(function (req, res) {
-		self.handleRequest.call(self, req, res);
+		self.handleRequest.call(self, false, req, res);
 	});
 
 	self.httpServer.on('upgrade', function () {
@@ -264,13 +258,13 @@ Router.prototype.setupServer = function (callback) {
 					res.writeHead(302, {'Location': route.errorRedirect});
 					res.end();
 				} else {
-					self.do404(res);
+					self.doErrorResponse(404, res);
 				}
 			} else {
-				self.do404(res);
+				self.doErrorResponse(404, res);
 			}
 		} else {
-			self.do404(res);
+			self.doErrorResponse(404, res);
 		}
 
 		return true;
@@ -279,14 +273,10 @@ Router.prototype.setupServer = function (callback) {
 	proxy.on('error', function (err, req, res) {
 		// Don't console log connection resets, they are very common
 		if (err.code !== 'ECONNRESET') {
-			console.log(colors.red('ERROR: ') + 'Proxy said: ' + err);
+			console.log(colors.red('ERROR routing ' + colors.bold(req.headers.host) + ': ') + 'Proxy said: ' + err);
 		}
 
-		res.writeHead(500, {
-			'Content-Type': 'text/plain'
-		});
-
-		res.end('Something went wrong. And we are reporting a custom error message.');
+		self.doErrorResponse(503, res);
 	});
 
 	// Config data was loaded so... start the server
@@ -295,9 +285,11 @@ Router.prototype.setupServer = function (callback) {
 
 	console.log(colors.cyan.bold('Started HTTP server, listening on port ') + colors.yellow.bold(self.configData.server.httpPort));
 	console.log(colors.cyan.bold('Started HTTPS server, listening on port ') + colors.yellow.bold(self.configData.server.httpsPort));
+
+	callback(false);
 };
 
-Router.prototype.handleRequest = function (req, res) {
+Router.prototype.handleRequest = function (secure, req, res) {
 	var self = this,
 		route;
 
@@ -305,6 +297,14 @@ Router.prototype.handleRequest = function (req, res) {
 	if (self.configData && self.configData.routerTable) {
 		if (self.configData.routerTable[req.headers.host] != null) {
 			route = self.configData.routerTable[req.headers.host];
+
+			// Check if we only allow secure connections to this host
+			if (route.ssl && route.ssl.onlySecure) {
+				if (!secure) {
+					// We only allow secure connections but this is not a secure connection
+					return self.doErrorResponse(404, res, 'Service not available on insecure connection!');
+				}
+			}
 
 			if (route.target) {
 				try {
@@ -314,13 +314,13 @@ Router.prototype.handleRequest = function (req, res) {
 				}
 			} else {
 				console.log(colors.red('ERROR: ') + 'Cannot route ' + req.headers.host + ' because config entry is missing "target" property.');
-				self.do404(res);
+				return self.doErrorResponse(404, res);
 			}
 		} else {
-			self.do404(res);
+			return self.doErrorResponse(404, res);
 		}
 	} else {
-		self.do404(res);
+		return self.doErrorResponse(404, res);
 	}
 };
 
@@ -362,6 +362,7 @@ Router.prototype.start = function (done) {
 
 		// Setup file watchers
 		function (callback) {
+			console.log('Watching config file for changes...');
 			// Watch the config file for changes
 			fs.watchFile(configFilePath, function (curr, prev) {
 				self.configFileEvent(curr, prev);
@@ -370,11 +371,49 @@ Router.prototype.start = function (done) {
 			callback(false);
 		}
 	], function (err, data) {
-		// Complete
-		console.log('Startup complete');
+		if (err) {
+			return console.log('Error starting up!', err);
+		}
+
+		// Startup complete
+		console.log(colors.cyan('Startup complete'));
 
 		if (done) { done(); }
 	});
+};
+
+Router.prototype.doErrorResponse = function (code, res, errMsg) {
+	var self = this,
+		msg;
+
+	if (!errMsg) {
+		if (self.configData && self.configData.errors && self.configData.errors[code]) {
+			errMsg = self.configData.errors[code];
+		}
+	}
+
+	if (!errMsg) {
+		switch (code) {
+			case 404:
+				msg = 'Not found';
+				break;
+
+			case 503:
+				msg = 'Service unavailable';
+				break;
+
+			default:
+				msg = 'An error occurred';
+				break;
+		}
+
+		errMsg = code + ' ' + msg;
+	}
+
+	res.writeHead(code, {
+		'Content-Type': 'text/plain'
+	});
+	res.end(errMsg);
 };
 
 router = new Router();
