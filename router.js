@@ -230,6 +230,7 @@ Router.prototype.setupServer = function (callback) {
 	self.httpsServer = https.createServer({
 		key: fs.readFileSync(__dirname + "/ssl/www.irrelon.com.key.pem"),
 		cert: fs.readFileSync(__dirname + "/ssl/www.irrelon.com.cert.pem"),
+		ca: fs.readFileSync(__dirname + "/ssl/www.irrelon.com.chain.pem"),
 		SNICallback: function (domain, callback) {
 			console.log('Getting secure context for domain: ' + domain);
 			if (callback) {
