@@ -1,10 +1,12 @@
+"use strict";
+
 var http = require('http'),
 	https = require('https'),
 	httpProxy = require('http-proxy'),
 	async = require('async'),
 	crypto = require('crypto'),
 	tls = require('tls'),
-	express = require('express'),
+	//express = require('express'),
 	spawn = require('child_process').spawn,
 	spawnSync = require('spawn-sync'),
 	fs = require('fs'),
@@ -13,6 +15,7 @@ var http = require('http'),
 	colors = require('colors'),
 	proxy,
 	configFilePath,
+	Router,
 	router;
 
 configFilePath = __dirname + '/config.json';
@@ -34,8 +37,8 @@ Router.prototype.loadConfigData = function (callback) {
 		var i,
 			routerTable,
 			route,
-			asyncTasks = [],
-			basicCallback = true;
+			asyncTasks = [];
+			//basicCallback = true;
 
 		if (err) { console.log(colors.red('ERROR: ') + 'Error reading router config file: ' + err); } else {
 			try {
@@ -141,7 +144,7 @@ Router.prototype.loadConfigData = function (callback) {
 														}
 													}
 												});
-											}
+											};
 										}(i));
 									} else {
 										asyncTasks.push(function (i) {
@@ -182,7 +185,7 @@ Router.prototype.loadConfigData = function (callback) {
 };
 
 Router.prototype.configFileEvent = function (curr, prev) {
-	if (curr.mtime != prev.mtime) {
+	if (curr.mtime !== prev.mtime) {
 		// The file has been modified so update the router table
 		console.log(colors.cyan.bold('Router table config data has changed, updating...'));
 		this.loadConfigData();
@@ -251,7 +254,7 @@ Router.prototype.setupServer = function (callback) {
 		var route;
 
 		if (self.configData && self.configData.routerTable) {
-			if (self.configData.routerTable[req.headers.host] != null) {
+			if (self.configData.routerTable[req.headers.host] !== null) {
 				route = self.configData.routerTable[req.headers.host];
 
 				if (route.errorRedirect) {
@@ -298,6 +301,10 @@ Router.prototype.handleRequest = function (secure, req, res) {
 		if (self.configData.routerTable[req.headers.host] != null) {
 			route = self.configData.routerTable[req.headers.host];
 
+			// Ensure we pass through the host from the header
+			route.headers = route.headers || {};
+			route.headers.host = route.headers.host || req.headers.host;
+
 			// Check if we only allow secure connections to this host
 			if (route.ssl && route.ssl.onlySecure) {
 				if (!secure) {
@@ -330,7 +337,7 @@ Router.prototype.handleUpgrade = function(req, socket, head) {
 
 	// Check for an entry in the router table
 	if (self.configData && self.configData.routerTable) {
-		if (self.configData.routerTable[req.headers.host] != null) {
+		if (self.configData.routerTable[req.headers.host] !== null) {
 			route = self.configData.routerTable[req.headers.host];
 
 			if (route.target) {
