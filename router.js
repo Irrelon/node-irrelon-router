@@ -410,9 +410,7 @@ Router.prototype.doErrorResponse = function (code, res, errMsg) {
 		errMsg = code + ' ' + msg;
 	}
 
-	res.writeHead(code, {
-		'Content-Type': 'text/plain'
-	});
+	res.writeHead(code, {'Content-Type': 'text/plain; charset=utf-8'});
 	res.end(errMsg);
 };
 
