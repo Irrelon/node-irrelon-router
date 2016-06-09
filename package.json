@@ -6,7 +6,10 @@
     "colors": "^1.1.2",
     "express": "^4.13.4",
     "forever": "^0.15.1",
-    "http-proxy": "1.11.x"
+    "fs-access": "^1.0.0",
+    "http-proxy": "1.11.x",
+    "mkdirp": "^0.5.1",
+    "spawn-sync": "^1.0.15"
   },
   "scripts": {
     "start": "forever start router.js",
