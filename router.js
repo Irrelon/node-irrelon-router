@@ -65,7 +65,7 @@ Router.prototype.loadConfigData = function (callback) {
 							if (routerTable.hasOwnProperty(i)) {
 								route = routerTable[i];
 
-								if (router.enabled !== false) {
+								if (route.enabled !== false) {
 									if (route.target) {
 										// Check if the route is secured via TLS
 										if (route.ssl && route.ssl.enable) {
