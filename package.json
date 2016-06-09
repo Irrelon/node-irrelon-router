@@ -8,6 +8,7 @@
     "forever": "^0.15.1",
     "fs-access": "^1.0.0",
     "http-proxy": "1.11.x",
+    "letsencrypt-cli": "^1.0.8",
     "mkdirp": "^0.5.1",
     "spawn-sync": "^1.0.15"
   },
