@@ -63,108 +63,110 @@ Router.prototype.loadConfigData = function (callback) {
 						if (routerTable.hasOwnProperty(i)) {
 							route = routerTable[i];
 
-							if (route.target) {
-								// Check if the route is secured via TLS
-								if (route.ssl && route.ssl.enable) {
-									if (route.ssl.generate) {
-										asyncTasks.push(function (asyncTaskComplete) {
-											mkdirp('./ssl', function (err) {
-												asyncTaskComplete(false);
+							if (router.enabled !== false) {
+								if (route.target) {
+									// Check if the route is secured via TLS
+									if (route.ssl && route.ssl.enable) {
+										if (route.ssl.generate) {
+											asyncTasks.push(function (asyncTaskComplete) {
+												mkdirp('./ssl', function (err) {
+													asyncTaskComplete(false);
+												});
 											});
-										});
-										asyncTasks.push(function (i) {
-											return function (asyncTaskComplete) {
-												// We need to check for certificates and
-												// auto-generate if they don't exist
-												self.checkSecureContext(i, function (err, domain) {
-													var child,
-														calledCallback = false;
+											asyncTasks.push(function (i) {
+												return function (asyncTaskComplete) {
+													// We need to check for certificates and
+													// auto-generate if they don't exist
+													self.checkSecureContext(i, function (err, domain) {
+														var child,
+															calledCallback = false;
 
-													if (!err) {
-														// Certificates already exist, use them
-														self.secureContext[domain] = self.getSecureContext(domain);
-														asyncTaskComplete(false);
-													} else {
-														// We need to generate the certificates
-														if (self.configData.letsencrypt && self.configData.letsencrypt.email) {
-															console.log('Certificates for ' + domain + ' do not exist, moving to create (' + self.configData.letsencrypt.email + ')...');
-
-															// Execute letsencrypt to generate certificates
-															console.log('Executing: ' + 'letsencrypt certonly --agree-tos --email ' + self.configData.letsencrypt.email + ' --standalone --domains ' + domain + ' --cert-path ./ssl/:hostname.cert.pem --fullchain-path ./ssl/:hostname.fullchain.pem --chain-path ./ssl/:hostname.chain.pem');
-															child = spawn('letsencrypt', [
-																'certonly',
-																'--agree-tos',
-																'--email', self.configData.letsencrypt.email,
-																'--standalone',
-																'--domains', domain,
-																'--cert-path', './ssl/:hostname.cert.pem',
-																'--fullchain-path', './ssl/:hostname.fullchain.pem',
-																'--chain-path', './ssl/:hostname.chain.pem'
-															]);
-
-															var finishFunc = function (code, type) {
-																console.log('Process ' + type + ' with code ' + code);
-
-																if (!calledCallback) {
-																	spawnSync('mv', [
-																		'/root/letsencrypt/etc/live/' + domain + '/privkey.pem',
-																		'./ssl/' + domain + '.key.pem'
-																	]);
-
-																	self.secureContext[domain] = self.getSecureContext(domain);
-
-																	calledCallback = true;
-																	asyncTaskComplete(false);
-																}
-															};
-
-															child.stderr.on("data", function (data) {
-																console.log('Process -> ' + data);
-															});
-
-															child.on("exit", function (code) {
-																finishFunc(code, 'exit');
-															});
-
-															child.on("close", function (code) {
-																finishFunc(code, 'close');
-															});
-
-															child.on("error", function (e) {
-																console.log('Process error: ' + e);
-																child.kill();
-
-																if (!calledCallback) {
-																	asyncTaskComplete(false);
-																}
-															});
+														if (!err) {
+															// Certificates already exist, use them
+															self.secureContext[domain] = self.getSecureContext(domain);
+															asyncTaskComplete(false);
 														} else {
-															console.log('Certificates for ' + domain + ' do not exist but could not auto-create!', 'Config file is missing letsencrypt.email parameter!');
-															asyncTaskComplete('Config file is missing letsencrypt.email parameter!');
-														}
-													}
-												});
-											};
-										}(i));
-									} else {
-										asyncTasks.push(function (i) {
-											return function (asyncTaskComplete) {
-												self.checkSecureContext(i, function (err, domain) {
-													if (!err) {
-														self.secureContext[domain] = self.getSecureContext(domain);
-														asyncTaskComplete(false);
-													} else {
-														console.log('Unable to load ssl cert for domain: ' + i + ' and auto-generate is switched off!');
-													}
-												});
-											};
-										}(i));
-									}
-								}
+															// We need to generate the certificates
+															if (self.configData.letsencrypt && self.configData.letsencrypt.email) {
+																console.log('Certificates for ' + domain + ' do not exist, moving to create (' + self.configData.letsencrypt.email + ')...');
 
-								console.log(colors.yellow.bold('Routing: ') + colors.green.bold(i) + colors.yellow.bold(' => ') + colors.green.bold(route.target));
-							} else {
-								console.log(colors.red('ERROR: ') + 'Route "' + i + '" missing "target" property!');
+																// Execute letsencrypt to generate certificates
+																console.log('Executing: ' + 'letsencrypt certonly --agree-tos --email ' + self.configData.letsencrypt.email + ' --standalone --domains ' + domain + ' --cert-path ./ssl/:hostname.cert.pem --fullchain-path ./ssl/:hostname.fullchain.pem --chain-path ./ssl/:hostname.chain.pem');
+																child = spawn('letsencrypt', [
+																	'certonly',
+																	'--agree-tos',
+																	'--email', self.configData.letsencrypt.email,
+																	'--standalone',
+																	'--domains', domain,
+																	'--cert-path', './ssl/:hostname.cert.pem',
+																	'--fullchain-path', './ssl/:hostname.fullchain.pem',
+																	'--chain-path', './ssl/:hostname.chain.pem'
+																]);
+
+																var finishFunc = function (code, type) {
+																	console.log('Process ' + type + ' with code ' + code);
+
+																	if (!calledCallback) {
+																		spawnSync('mv', [
+																			'/root/letsencrypt/etc/live/' + domain + '/privkey.pem',
+																			'./ssl/' + domain + '.key.pem'
+																		]);
+
+																		self.secureContext[domain] = self.getSecureContext(domain);
+
+																		calledCallback = true;
+																		asyncTaskComplete(false);
+																	}
+																};
+
+																child.stderr.on("data", function (data) {
+																	console.log('Process -> ' + data);
+																});
+
+																child.on("exit", function (code) {
+																	finishFunc(code, 'exit');
+																});
+
+																child.on("close", function (code) {
+																	finishFunc(code, 'close');
+																});
+
+																child.on("error", function (e) {
+																	console.log('Process error: ' + e);
+																	child.kill();
+
+																	if (!calledCallback) {
+																		asyncTaskComplete(false);
+																	}
+																});
+															} else {
+																console.log('Certificates for ' + domain + ' do not exist but could not auto-create!', 'Config file is missing letsencrypt.email parameter!');
+																asyncTaskComplete('Config file is missing letsencrypt.email parameter!');
+															}
+														}
+													});
+												};
+											}(i));
+										} else {
+											asyncTasks.push(function (i) {
+												return function (asyncTaskComplete) {
+													self.checkSecureContext(i, function (err, domain) {
+														if (!err) {
+															self.secureContext[domain] = self.getSecureContext(domain);
+															asyncTaskComplete(false);
+														} else {
+															console.log('Unable to load ssl cert for domain: ' + i + ' and auto-generate is switched off!');
+														}
+													});
+												};
+											}(i));
+										}
+									}
+
+									console.log(colors.yellow.bold('Routing: ') + colors.green.bold(i) + colors.yellow.bold(' => ') + colors.green.bold(route.target));
+								} else {
+									console.log(colors.red('ERROR: ') + 'Route "' + i + '" missing "target" property!');
+								}
 							}
 						}
 					}
@@ -301,26 +303,31 @@ Router.prototype.handleRequest = function (secure, req, res) {
 		if (self.configData.routerTable[req.headers.host] != null) {
 			route = self.configData.routerTable[req.headers.host];
 
-			// Ensure we pass through the host from the header
-			route.headers = route.headers || {};
-			route.headers.host = route.headers.host || req.headers.host;
+			if (route.enabled !== false) {
+				// Ensure we pass through the host from the header
+				route.headers = route.headers || {};
+				route.headers.host = route.headers.host || req.headers.host;
 
-			// Check if we only allow secure connections to this host
-			if (route.ssl && route.ssl.onlySecure) {
-				if (!secure) {
-					// We only allow secure connections but this is not a secure connection
-					return self.doErrorResponse(404, res, 'Service not available on insecure connection!');
+				// Check if we only allow secure connections to this host
+				if (route.ssl && route.ssl.onlySecure) {
+					if (!secure) {
+						// We only allow secure connections but this is not a secure connection
+						return self.doErrorResponse(404, res, 'Service not available on insecure connection!');
+					}
 				}
-			}
 
-			if (route.target) {
-				try {
-					proxy.web(req, res, route);
-				} catch (e) {
-					console.log(colors.red('ERROR: ') + 'Routing ' + req.headers.host + ' caused error: ' + e);
+				if (route.target) {
+					try {
+						proxy.web(req, res, route);
+					} catch (e) {
+						console.log(colors.red('ERROR: ') + 'Routing ' + req.headers.host + ' caused error: ' + e);
+					}
+				} else {
+					console.log(colors.red('ERROR: ') + 'Cannot route ' + req.headers.host + ' because config entry is missing "target" property.');
+					return self.doErrorResponse(404, res);
 				}
 			} else {
-				console.log(colors.red('ERROR: ') + 'Cannot route ' + req.headers.host + ' because config entry is missing "target" property.');
+				console.log(colors.red('ERROR: ') + 'Cannot route ' + req.headers.host + ' because config entry is disabled.');
 				return self.doErrorResponse(404, res);
 			}
 		} else {
@@ -340,14 +347,18 @@ Router.prototype.handleUpgrade = function(req, socket, head) {
 		if (self.configData.routerTable[req.headers.host] !== null) {
 			route = self.configData.routerTable[req.headers.host];
 
-			if (route.target) {
-				try {
-					proxy.ws(req, socket, head, route);
-				} catch (e) {
-					console.log(colors.red('ERROR: ') + 'Routing websocket ' + req.headers.host + ' caused error: ' + e);
+			if (route.enabled !== false) {
+				if (route.target) {
+					try {
+						proxy.ws(req, socket, head, route);
+					} catch (e) {
+						console.log(colors.red('ERROR: ') + 'Routing websocket ' + req.headers.host + ' caused error: ' + e);
+					}
+				} else {
+					console.log(colors.red('ERROR: ') + 'Cannot route ' + req.headers.host + ' because config entry is missing "target" property.');
 				}
 			} else {
-				console.log(colors.red('ERROR: ') + 'Cannot route ' + req.headers.host + ' because config entry is missing "target" property.');
+				console.log(colors.red('ERROR: ') + 'Cannot route ' + req.headers.host + ' because config entry is disabled.');
 			}
 		} else {
 			console.log(colors.red('ERROR: ') + 'Cannot upgrade socket for websockets because the header host does not exist in the routing table!', req.headers);
