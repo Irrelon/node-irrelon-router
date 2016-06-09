@@ -1,0 +1,23 @@
+{
+	"server": {
+		"httpPort": 80,
+		"httpsPort": 443
+	},
+	"letsencrypt": {
+		"email": "my@email.com"
+	},
+	"routerTable": {
+		"mysubdomain.mydomain.com": {
+			"target": "http://localhost:10200",
+			"ssl": {
+				"enable": false,
+				"generate": false,
+				"secureOnly": false
+			},
+			"errorRedirect": "http://www.google.com"
+		}
+	},
+	"errors": {
+		"404": "404 Not found"
+	}
+}
