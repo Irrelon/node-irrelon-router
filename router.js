@@ -371,12 +371,8 @@ Router.prototype.start = function (done) {
 		// Load config data
 		self.loadConfigData.bind(self),
 
-		function (callback) {
-			setTimeout(function () {
-				// Setup servers
-				self.setupServer.call(self, callback);
-			}, 10000);
-		},
+		// Setup servers
+		self.setupServer.bind(self),
 
 		// Setup file watchers
 		function (callback) {
