@@ -221,7 +221,7 @@ Router.prototype.getSecureContext = function (domain) {
 Router.prototype.setupServer = function (callback) {
 	var self = this;
 
-	self.log('Starting server...')
+	console.log(colors.green.bold('Starting server...'));
 
 	// TODO: We need to generate default server certs here
 
