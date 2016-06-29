@@ -221,6 +221,8 @@ Router.prototype.getSecureContext = function (domain) {
 Router.prototype.setupServer = function (callback) {
 	var self = this;
 
+	self.log('Starting server...')
+
 	// TODO: We need to generate default server certs here
 
 	self.httpsServer = https.createServer({
@@ -369,8 +371,12 @@ Router.prototype.start = function (done) {
 		// Load config data
 		self.loadConfigData.bind(self),
 
-		// Setup servers
-		self.setupServer.bind(self),
+		function (callback) {
+			setTimeout(function () {
+				// Setup servers
+				self.setupServer.call(self, callback);
+			}, 10000);
+		},
 
 		// Setup file watchers
 		function (callback) {
