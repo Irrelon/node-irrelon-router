@@ -104,6 +104,7 @@ Router.prototype.loadConfigData = function (callback) {
 																		console.log('Process ' + type + ' with code ' + code);
 
 																		if (!calledCallback) {
+																			calledCallback = true;
 																			spawnSync('mv', [
 																				'/root/letsencrypt/etc/live/' + domain + '/privkey.pem',
 																				'./ssl/' + domain + '.key.pem'
@@ -111,7 +112,7 @@ Router.prototype.loadConfigData = function (callback) {
 
 																			self.secureContext[domain] = self.getSecureContext(domain);
 
-																			calledCallback = true;
+																			
 																			asyncTaskComplete(false);
 																		}
 																	};
@@ -121,10 +122,12 @@ Router.prototype.loadConfigData = function (callback) {
 																	});
 
 																	child.on("exit", function (code) {
+																		console.log('Child process exit');
 																		finishFunc(code, 'exit');
 																	});
 
 																	child.on("close", function (code) {
+																		console.log('Child process close');
 																		finishFunc(code, 'close');
 																	});
 
