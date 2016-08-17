@@ -22,182 +22,277 @@ var sslConfig = require('ssl-config')('modern'),
 configFilePath = __dirname + '/config.json';
 
 Router = function () {
-	try {
-		proxy = httpProxy.createProxyServer({});
-	} catch (e) {
-		console.log(colors.red('ERROR: ') + 'Proxy threw error: ' + e);
-	}
+	
 };
 
 Router.prototype.loadConfigData = function (callback) {
-	var self = this;
-
-	console.log('Loading configuration data...');
-
-	fs.readFile(configFilePath, 'utf8', function (err, data) {
-		var i,
-			routerTable,
-			route,
-			asyncTasks = [];
-			//basicCallback = true;
-
-		if (err) { console.log(colors.red('ERROR: ') + 'Error reading router config file: ' + err); } else {
-			try {
-				self.configData = JSON.parse(data);
-			} catch (e) {
-				console.log(colors.red('ERROR: ') + 'Configuration data is not valid JSON!');
-				return;
+	var self = this,
+		waterfallArr = [];
+	
+	// Get config file
+	waterfallArr.push(function (finished) {
+		console.log('Loading configuration data from "' + configFilePath + '"...');
+		
+		fs.readFile(configFilePath, 'utf8', function (err, data) {
+			if (!err) {
+				finished(false, data);
+			} else {
+				finished('Error reading router config file: ' + err, data);
 			}
-
-			if (self.configData) {
-				if (!self.configData.server) {
-					console.log(colors.red('ERROR: ') + 'Missing config "server" section!');
-				}
-
-				if (!self.configData.routerTable) {
-					console.log(colors.red('ERROR: ') + 'Missing config "routerTable" section!');
-				} else {
-					routerTable = self.configData.routerTable;
-
-					// Generate the ssl folder
-					mkdirp('./ssl', function (err) {
-						// Add new routes
-						for (i in routerTable) {
-							if (routerTable.hasOwnProperty(i)) {
-								route = routerTable[i];
-
-								if (route.enabled !== false) {
-									if (route.target) {
-										// Check if the route is secured via TLS
-										if (route.ssl && route.ssl.enable) {
-											if (route.ssl.generate) {
-												asyncTasks.push(function (i) {
-													return function (asyncTaskComplete) {
-														// We need to check for certificates and
-														// auto-generate if they don't exist
-														self.checkSecureContext(i, function (err, domain) {
-															var child,
-																calledCallback = false;
-
-															if (!err) {
-																// Certificates already exist, use them
-																self.secureContext[domain] = self.getSecureContext(domain);
-																asyncTaskComplete(false);
-															} else {
-																// We need to generate the certificates
-																if (self.configData.letsencrypt && self.configData.letsencrypt.email) {
-																	console.log('Certificates for ' + domain + ' do not exist, moving to create (' + self.configData.letsencrypt.email + ')...');
-
-																	// Execute letsencrypt to generate certificates
-																	console.log('Executing: ' + 'letsencrypt certonly --agree-tos --email ' + self.configData.letsencrypt.email + ' --standalone --domains ' + domain + ' --cert-path ./ssl/:hostname.cert.pem --fullchain-path ./ssl/:hostname.fullchain.pem --chain-path ./ssl/:hostname.chain.pem');
-																	child = spawn('letsencrypt', [
-																		'certonly',
-																		'--agree-tos',
-																		'--email', self.configData.letsencrypt.email,
-																		'--standalone',
-																		'--domains', domain,
-																		'--cert-path', './ssl/:hostname.cert.pem',
-																		'--fullchain-path', './ssl/:hostname.fullchain.pem',
-																		'--chain-path', './ssl/:hostname.chain.pem'
-																	]);
-
-																	var finishFunc = function (code, type) {
-																		console.log('Process ' + type + ' with code ' + code);
-
-																		if (!calledCallback) {
-																			calledCallback = true;
-																			spawnSync('mv', [
-																				'/root/letsencrypt/etc/live/' + domain + '/privkey.pem',
-																				'./ssl/' + domain + '.key.pem'
-																			]);
-
-																			self.secureContext[domain] = self.getSecureContext(domain);
-
-																			
-																			asyncTaskComplete(false);
-																		}
-																	};
-
-																	child.stderr.on("data", function (data) {
-																		console.log('Process -> ' + data);
-																	});
-
-																	child.on("exit", function (code) {
-																		console.log('Child process exit');
-																		finishFunc(code, 'exit');
-																	});
-
-																	child.on("close", function (code) {
-																		console.log('Child process close');
-																		finishFunc(code, 'close');
-																	});
-
-																	child.on("error", function (e) {
-																		console.log('Process error: ' + e);
-																		child.kill();
-
-																		if (!calledCallback) {
-																			asyncTaskComplete(false);
-																		}
-																	});
-																} else {
-																	console.log('Certificates for ' + domain + ' do not exist but could not auto-create!', 'Config file is missing letsencrypt.email parameter!');
-																	asyncTaskComplete('Config file is missing letsencrypt.email parameter!');
-																}
-															}
-														});
-													};
-												}(i));
-											} else {
-												asyncTasks.push(function (i) {
-													return function (asyncTaskComplete) {
-														self.checkSecureContext(i, function (err, domain) {
-															if (!err) {
-																self.secureContext[domain] = self.getSecureContext(domain);
-																asyncTaskComplete(false);
-															} else {
-																console.log('Unable to load ssl cert for domain: ' + i + ' and auto-generate is switched off!');
-															}
-														});
-													};
-												}(i));
-											}
-										}
-
-										console.log(colors.yellow.bold('Routing: ') + colors.green.bold(i) + colors.yellow.bold(' => ') + colors.green.bold(route.target));
-									} else {
-										console.log(colors.red('ERROR: ') + 'Route "' + i + '" missing "target" property!');
-									}
-								}
-							}
+		});
+	});
+	
+	// Parse config file JSON
+	waterfallArr.push(function (data, finished) {
+		var configData;
+		
+		console.log('Parsing configuration data...');
+		try {
+			configData = JSON.parse(data);
+			finished(false, configData);
+		} catch (e) {
+			finished('Configuration data is not valid JSON!');
+		}
+	});
+	
+	// Check config file sections
+	waterfallArr.push(function (configData, finished) {
+		console.log('Checking configuration data...');
+		
+		if (!configData.server) {
+			finished('Missing config "server" section!');
+		} else if (!configData.routerTable) {
+			finished('Missing config "routerTable" section!');
+		} else {
+			finished(false, configData);
+		}
+	});
+	
+	// Get router table
+	waterfallArr.push(function (configData, finished) {
+		var routerTable;
+		
+		console.log('Getting router table data...');
+		
+		self.configData = configData;
+		routerTable = configData.routerTable;
+		
+		finished(false, configData, routerTable);
+	});
+	
+	// Make SSL folder
+	waterfallArr.push(function (configData, routerTable, finished) {
+		console.log('Generating SSL folder...');
+		
+		// Generate the ssl folder
+		mkdirp('./ssl', function (err) {
+			// We don't care if there was an error since it usually means the folder
+			// already exists. We might want to actually check the err to ensure this
+			finished(false, configData, routerTable);
+		});
+	});
+	
+	// Scan router table and check if SSL cert needs generating
+	waterfallArr.push(function (configData, routerTable, finished) {
+		var domain,
+			route,
+			certProcessArr = [],
+			generateGetCertFunc;
+		
+		console.log('Scanning router table for SSL requirements...');
+		
+		generateGetCertFunc = function (domain, generate) {
+			return function (finished) {
+				console.log(' - Checking ' + domain + ' for SSL cert...');
+				self.getCert(domain, generate, finished);
+			};
+		};
+		
+		// Add new routes
+		for (domain in routerTable) {
+			if (routerTable.hasOwnProperty(domain)) {
+				route = routerTable[domain];
+				
+				if (route.enabled !== false) {
+					if (route.target) {
+						console.log(colors.yellow.bold('Routing: ') + colors.green.bold(domain) + colors.yellow.bold(' => ') + colors.green.bold(route.target));
+						
+						// Check if the route is secured via TLS
+						if (route.ssl && route.ssl.enable) {
+							certProcessArr.push(generateGetCertFunc(domain, route.ssl.generate));
 						}
-
-						async.series(asyncTasks, function () {
-							//console.log('Async complete');
-
-							console.log(colors.yellow.bold('Router table config data updated successfully.'));
-
-							if (callback) {
-								callback(false);
-							}
-						});
-					});
+					} else {
+						return finished('Route "' + domain + '" missing "target" property!');
+					}
+				} else {
+					console.log('Ignoring ' + domain + ' because it is DISABLED');
 				}
 			}
 		}
+		
+		finished(false, configData, routerTable, certProcessArr);
 	});
+	
+	// Process the certificates for all domains
+	waterfallArr.push(function (configData, routerTable, certProcessArr, finished) {
+		console.log('Processing cert checks...');
+		
+		if (self.configData.letsencrypt.test) {
+			console.log("+++ USING TESTING (STAGING) LETSENCRYPT SERVER +++");
+		}
+		
+		async.series(certProcessArr, function (err) {
+			if (!err) {
+				console.log('Cert checks complete');
+				console.log(colors.yellow.bold('Router table config data updated successfully.'));
+				
+				finished(false);
+			} else {
+				finished(err);
+			}
+		});
+	});
+	
+	async.waterfall(waterfallArr, function (err) {
+		if (!err) {
+			callback(false);
+		} else {
+			console.log(colors.red('ERROR: ') + err);
+		}
+	});
+};
+
+Router.prototype.getCert = function (domain, generate, finished) {
+	var self = this;
+	
+	self.checkSecureContext(domain, function (err, domain) {
+		if (!err) {
+			console.log('   - Cert for ' + domain + ' already exists, using existing cert');
+			self.secureContext[domain] = self.getSecureContext(domain);
+			finished(false);
+		} else {
+			console.log('   - Cert for ' + domain + ' does not yet exist');
+			// The cert doesn't exist, are we set to generate?
+			if (generate) {
+				console.log('   - Attempting to generate cert for ' + domain + '...');
+				self.generateCert(domain, finished);
+			} else {
+				finished('   - Unable to load ssl cert for domain: ' + domain + ' and auto-generate is switched off!');
+			}
+		}
+	});
+};
+
+Router.prototype.generateCert = function (domain, finished) {
+	var self = this,
+		child,
+		childErr = '',
+		childHadError = false,
+		calledCallback = false,
+		args;
+	
+	// We need to generate the certificates
+	if (self.configData.letsencrypt && self.configData.letsencrypt.email) {
+		console.log('Certificates for ' + domain + ' do not exist, moving to create (' + self.configData.letsencrypt.email + ')...');
+		
+		args = [
+			'certonly',
+			'--agree-tos',
+			'--email', self.configData.letsencrypt.email,
+			'--standalone',
+			'--domains', domain,
+			'--keep',
+			'--quiet'
+		];
+		
+		if (self.configData.letsencrypt.test) {
+			args.push('--server', 'https://acme-staging.api.letsencrypt.org/directory');
+		}
+		
+		// Execute letsencrypt to generate certificates
+		//console.log('Executing: ' + 'letsencrypt certonly --agree-tos --email ' + self.configData.letsencrypt.email + ' --standalone --domains ' + domain + ' --cert-path ./ssl/:hostname.cert.pem --fullchain-path ./ssl/:hostname.fullchain.pem --chain-path ./ssl/:hostname.chain.pem');
+		
+		child = spawn('./certbot-auto', args);
+		
+		var finishFunc = function (code, type) {
+			console.log('   - Process ' + type + ' with code ' + code);
+			
+			if (!childHadError) {
+				if (!calledCallback) {
+					calledCallback = true;
+					spawnSync('cp', [
+						'/etc/letsencrypt/live/' + domain + '/cert.pem',
+						'./ssl/' + domain + '.cert.pem'
+					]);
+					
+					spawnSync('cp', [
+						'/etc/letsencrypt/live/' + domain + '/chain.pem',
+						'./ssl/' + domain + '.chain.pem'
+					]);
+					
+					spawnSync('cp', [
+						'/etc/letsencrypt/live/' + domain + '/fullchain.pem',
+						'./ssl/' + domain + '.fullchain.pem'
+					]);
+					
+					spawnSync('cp', [
+						'/etc/letsencrypt/live/' + domain + '/privkey.pem',
+						'./ssl/' + domain + '.key.pem'
+					]);
+					
+					self.secureContext[domain] = self.getSecureContext(domain);
+					
+					finished(false);
+				}
+			} else {
+				if (!calledCallback) {
+					calledCallback = true;
+					finished(childErr);
+				}
+			}
+		};
+		
+		child.stderr.on("data", function (data) {
+			console.log('   - Process -> ' + data);
+			childErr += data + "\n";
+			childHadError = true;
+		});
+		
+		child.on("exit", function (code) {
+			console.log('   - Child process exit');
+			finishFunc(code, 'exit');
+		});
+		
+		child.on("close", function (code) {
+			console.log('   - Child process close');
+			finishFunc(code, 'close');
+		});
+		
+		child.on("error", function (e) {
+			console.log('   - Process error: ' + e);
+			child.kill();
+			
+			if (!calledCallback) {
+				finished(false);
+			}
+		});
+	} else {
+		console.log('   - Certificates for ' + domain + ' do not exist but could not auto-create!', 'Config file is missing letsencrypt.email parameter!');
+		finished('   - Config file is missing letsencrypt.email parameter!');
+	}
 };
 
 Router.prototype.configFileEvent = function (curr, prev) {
 	if (curr.mtime !== prev.mtime) {
 		// The file has been modified so update the router table
 		console.log(colors.cyan.bold('Router table config data has changed, updating...'));
-		this.loadConfigData();
+		this.restart();
+		//this.loadConfigData();
 	}
 };
 
 Router.prototype.checkSecureContext = function (domain, callback) {
-	console.log('Checking for existing file: ' + __dirname + '/ssl/' + domain + '.key.pem');
+	console.log('   - Checking for existing file: ' + __dirname + '/ssl/' + domain + '.key.pem');
 	fsAccess(__dirname + '/ssl/' + domain + '.key.pem', function (err) {
 		callback(err, domain);
 	});
@@ -225,7 +320,7 @@ Router.prototype.getSecureContext = function (domain) {
 	return cryptoData;
 };
 
-Router.prototype.setupServer = function (callback) {
+Router.prototype.startServer = function (callback) {
 	var self = this;
 
 	console.log(colors.green.bold('Starting server...'));
@@ -257,6 +352,12 @@ Router.prototype.setupServer = function (callback) {
 	self.httpServer.on('upgrade', function () {
 		self.handleUpgrade.apply(self, arguments);
 	});
+	
+	try {
+		proxy = httpProxy.createProxyServer({});
+	} catch (e) {
+		console.log(colors.red('ERROR: ') + 'Proxy threw error: ' + e);
+	}
 
 	proxy.on('proxyError', function (err, req, res) {
 		var route;
@@ -297,6 +398,20 @@ Router.prototype.setupServer = function (callback) {
 	console.log(colors.cyan.bold('Started HTTP server, listening on port ') + colors.yellow.bold(self.configData.server.httpPort));
 	console.log(colors.cyan.bold('Started HTTPS server, listening on port ') + colors.yellow.bold(self.configData.server.httpsPort));
 
+	callback(false);
+};
+
+Router.prototype.stopServer = function (callback) {
+	var self = this;
+	
+	console.log(colors.red.bold('Stopping server...'));
+	
+	self.httpsServer.close();
+	self.httpServer.close();
+	
+	console.log(colors.cyan.bold('Stopped HTTP server'));
+	console.log(colors.cyan.bold('Stopped HTTPS server'));
+	
 	callback(false);
 };
 
@@ -382,7 +497,7 @@ Router.prototype.start = function (done) {
 		self.loadConfigData.bind(self),
 
 		// Setup servers
-		self.setupServer.bind(self),
+		self.startServer.bind(self),
 
 		// Setup file watchers
 		function (callback) {
@@ -403,6 +518,40 @@ Router.prototype.start = function (done) {
 		console.log(colors.cyan('Startup complete'));
 
 		if (done) { done(); }
+	});
+};
+
+Router.prototype.stop = function (done) {
+	var self = this;
+	
+	async.series([
+		// Setup servers
+		self.stopServer.bind(self)
+	], function (err, data) {
+		if (err) {
+			return console.log('Error stopping!', err);
+		}
+		
+		console.log(colors.cyan('Stop complete'));
+		
+		if (done) { done(); }
+	});
+};
+
+Router.prototype.restart = function (done) {
+	var self = this;
+	
+	async.series([
+		// Stop server
+		self.stopServer.bind(self),
+		
+		// Load config data
+		self.loadConfigData.bind(self),
+		
+		// Setup servers
+		self.startServer.bind(self)
+	], function (err) {
+			
 	});
 };
 
