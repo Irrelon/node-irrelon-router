@@ -167,11 +167,11 @@ Router.prototype.getCert = function (domain, generate, finished) {
 	
 	self.checkSecureContext(domain, function (err, domain) {
 		if (!err) {
-			console.log('   - Cert for ' + domain + ' already exists, using existing cert');
+			console.log(colors.green.bold('   - Cert for ' + domain + ' already exists, using existing cert'));
 			self.secureContext[domain] = self.getSecureContext(domain);
 			finished(false);
 		} else {
-			console.log('   - Cert for ' + domain + ' does not yet exist');
+			console.log(colors.yellow.bold('   - Cert for ' + domain + ' does not yet exist'));
 			// The cert doesn't exist, are we set to generate?
 			if (generate) {
 				console.log('   - Attempting to generate cert for ' + domain + '...');
@@ -193,7 +193,7 @@ Router.prototype.generateCert = function (domain, finished) {
 	
 	// We need to generate the certificates
 	if (self.configData.letsencrypt && self.configData.letsencrypt.email) {
-		console.log('Certificates for ' + domain + ' do not exist, moving to create (' + self.configData.letsencrypt.email + ')...');
+		console.log('   - Certificates for ' + domain + ' do not exist, moving to create (' + self.configData.letsencrypt.email + ')...');
 		
 		args = [
 			'certonly',
@@ -241,6 +241,8 @@ Router.prototype.generateCert = function (domain, finished) {
 					]);
 					
 					self.secureContext[domain] = self.getSecureContext(domain);
+					
+					console.log(colors.green.bold('   - Cert generated successfully'));
 					
 					finished(false);
 				}
