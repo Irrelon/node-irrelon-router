@@ -1,6 +1,7 @@
 "use strict";
 
-var http = require('http'),
+var sslConfig = require('ssl-config')('modern'),
+	http = require('http'),
 	https = require('https'),
 	httpProxy = require('http-proxy'),
 	async = require('async'),
@@ -207,7 +208,10 @@ Router.prototype.getSecureContext = function (domain) {
 	var credentials = {
 		key: fs.readFileSync(__dirname + '/ssl/' + domain + '.key.pem'),
 		cert: fs.readFileSync(__dirname + '/ssl/' + domain + '.fullchain.pem'),
-		ca: fs.readFileSync(__dirname + '/ssl/' + domain + '.chain.pem')
+		ca: fs.readFileSync(__dirname + '/ssl/' + domain + '.chain.pem'),
+		ciphers: sslConfig.ciphers,
+		honorCipherOrder: true,
+		secureOptions: sslConfig.minimumTLSVersion
 	};
 
 	if (tls.createSecureContext) {
@@ -238,7 +242,10 @@ Router.prototype.setupServer = function (callback) {
 				//console.log('Returning with:', self.secureContext[domain]);
 				return self.secureContext[domain];
 			}
-		}
+		},
+		ciphers: sslConfig.ciphers,
+		honorCipherOrder: true,
+		secureOptions: sslConfig.minimumTLSVersion
 	}, function (req, res) {
 		self.handleRequest.call(self, true, req, res);
 	});
