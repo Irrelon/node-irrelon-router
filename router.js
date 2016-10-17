@@ -11,9 +11,11 @@ var sslConfig = require('ssl-config')('modern'),
 	spawn = require('child_process').spawn,
 	spawnSync = require('spawn-sync'),
 	fs = require('fs'),
+	path = require('path'),
 	fsAccess = require('fs-access'),
 	mkdirp = require('mkdirp'),
 	colors = require('colors'),
+	urlParser = require('url'),
 	proxy,
 	configFilePath,
 	Router,
@@ -90,6 +92,25 @@ Router.prototype.loadConfigData = function (callback) {
 			// already exists. We might want to actually check the err to ensure this
 			finished(false, configData, routerTable);
 		});
+	});
+	
+	async.waterfall(waterfallArr, function (err) {
+		if (!err) {
+			callback(false);
+		} else {
+			console.log(colors.red('ERROR: ') + err);
+		}
+	});
+};
+
+Router.prototype.checkForCerts = function (callback) {
+	var self = this,
+		waterfallArr = [];
+	
+	// Push a first function that just passes the configData and routerTable
+	// to the subsequent waterfall functions
+	waterfallArr.push(function (finished) {
+		finished(false, self.configData, self.configData.routerTable);
 	});
 	
 	// Scan router table and check if SSL cert needs generating
@@ -199,7 +220,8 @@ Router.prototype.generateCert = function (domain, finished) {
 			'certonly',
 			'--agree-tos',
 			'--email', self.configData.letsencrypt.email,
-			'--standalone',
+			'--webroot',
+			'--webroot-path', './ssl/',
 			'--domains', domain,
 			'--keep',
 			'--quiet'
@@ -220,25 +242,25 @@ Router.prototype.generateCert = function (domain, finished) {
 			if (!childHadError) {
 				if (!calledCallback) {
 					calledCallback = true;
-					spawnSync('cp', [
+					/*spawnSync('cp', [
 						'/etc/letsencrypt/live/' + domain + '/cert.pem',
 						'./ssl/' + domain + '.cert.pem'
-					]);
+					]);*/
 					
-					spawnSync('cp', [
+					/*spawnSync('cp', [
 						'/etc/letsencrypt/live/' + domain + '/chain.pem',
 						'./ssl/' + domain + '.chain.pem'
-					]);
+					]);*/
 					
-					spawnSync('cp', [
+					/*spawnSync('cp', [
 						'/etc/letsencrypt/live/' + domain + '/fullchain.pem',
 						'./ssl/' + domain + '.fullchain.pem'
-					]);
+					]);*/
 					
-					spawnSync('cp', [
+					/*spawnSync('cp', [
 						'/etc/letsencrypt/live/' + domain + '/privkey.pem',
 						'./ssl/' + domain + '.key.pem'
-					]);
+					]);*/
 					
 					self.secureContext[domain] = self.getSecureContext(domain);
 					
@@ -294,8 +316,8 @@ Router.prototype.configFileEvent = function (curr, prev) {
 };
 
 Router.prototype.checkSecureContext = function (domain, callback) {
-	console.log('   - Checking for existing file: ' + __dirname + '/ssl/' + domain + '.key.pem');
-	fsAccess(__dirname + '/ssl/' + domain + '.key.pem', function (err) {
+	console.log('   - Checking for existing file: /etc/letsencrypt/live/' + domain + '/privkey.pem');
+	fsAccess('/etc/letsencrypt/live/' + domain + '/privkey.pem', function (err) {
 		callback(err, domain);
 	});
 };
@@ -303,9 +325,9 @@ Router.prototype.checkSecureContext = function (domain, callback) {
 Router.prototype.getSecureContext = function (domain) {
 	var cryptoData;
 	var credentials = {
-		key: fs.readFileSync(__dirname + '/ssl/' + domain + '.key.pem'),
-		cert: fs.readFileSync(__dirname + '/ssl/' + domain + '.fullchain.pem'),
-		ca: fs.readFileSync(__dirname + '/ssl/' + domain + '.chain.pem'),
+		key: fs.readFileSync('/etc/letsencrypt/live/' + domain + '/privkey.pem'),
+		cert: fs.readFileSync('/etc/letsencrypt/live/' + domain + '/fullchain.pem'),
+		ca: fs.readFileSync('/etc/letsencrypt/live/' + domain + '/chain.pem'),
 		ciphers: sslConfig.ciphers,
 		honorCipherOrder: true,
 		secureOptions: sslConfig.minimumTLSVersion
@@ -419,13 +441,59 @@ Router.prototype.stopServer = function (callback) {
 
 Router.prototype.handleRequest = function (secure, req, res) {
 	var self = this,
-		route;
+		route,
+		clientIp,
+		parsedRoute,
+		filePath,
+		stat,
+		readStream;
+	
+	clientIp = req.headers['x-forwarded-for'] ||
+		req.connection.remoteAddress ||
+		req.socket.remoteAddress ||
+		req.connection.socket.remoteAddress;
+	
+	parsedRoute = urlParser.parse(req.url);
+	
+	console.log(colors.yellow.bold(req.headers.host), 'from', colors.yellow(clientIp));
+	console.log("-->", colors.cyan(parsedRoute.path));
+	
+	// Check for an ssl cert request
+	if (parsedRoute.path.indexOf('/.well-known/acme-challenge') === 0) {
+		// Requesting ssl cert data, serve it
+		filePath = path.join(__dirname, '/ssl', parsedRoute.path);
+		console.log("-->", colors.cyan('Attempting to serve: ' + filePath));
+		
+		fs.exists(filePath, function (exists) {
+			if (exists) {
+				stat = fs.statSync(filePath);
+				
+				res.writeHead(200, {
+					'Content-Type': 'application/octet-stream',
+					'Content-Length': stat.size
+				});
+				
+				readStream = fs.createReadStream(filePath);
+				
+				res.on('error', function(err) {
+					readStream.end();
+				});
+				
+				readStream.pipe(res);
+			} else {
+				console.log("-->", colors.red('Unable to load: ' + filePath));
+				self.doErrorResponse(404, res);
+			}
+		});
+		
+		return;
+	}
 
 	// Check for an entry in the router table
 	if (self.configData && self.configData.routerTable) {
-		if (self.configData.routerTable[req.headers.host] != null) {
+		if (self.configData.routerTable[req.headers.host] != null) { // Use != here!!
 			route = self.configData.routerTable[req.headers.host];
-
+			
 			if (route.enabled !== false) {
 				// Ensure we pass through the host from the header
 				route.headers = route.headers || {};
@@ -442,6 +510,7 @@ Router.prototype.handleRequest = function (secure, req, res) {
 				if (route.target) {
 					try {
 						proxy.web(req, res, route);
+						console.log(colors.green('-->'), 'routed to', route.target);
 					} catch (e) {
 						console.log(colors.red('ERROR: ') + 'Routing ' + req.headers.host + ' caused error: ' + e);
 					}
@@ -500,6 +569,9 @@ Router.prototype.start = function (done) {
 
 		// Setup servers
 		self.startServer.bind(self),
+		
+		// Check for certificates
+		self.checkForCerts.bind(self),
 
 		// Setup file watchers
 		function (callback) {

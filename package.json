@@ -16,6 +16,6 @@
     "start": "forever start router.js",
     "test": "node router.js",
     "stop": "forever stop router.js",
-    "postinstall": "npm install -g letsencrypt-cli"
+    "postinstall": "sh ./install-certbot.sh"
   }
 }
