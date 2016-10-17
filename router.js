@@ -23,6 +23,13 @@ var sslConfig = require('ssl-config')('modern'),
 
 configFilePath = __dirname + '/config.json';
 
+// TODO: Need to create a timer here to run certbot-auto renew every so often
+/*
+ 
+ ./certbot-auto renew --quiet --no-self-upgrade
+
+*/
+
 Router = function () {
 	
 };
