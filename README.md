@@ -28,44 +28,31 @@ First clone this repo:
 
     git clone git://github.com/irrelon/node-irrelon-router.git
 
-Then install http-proxy:
+Then install:
 
+	cd node-irrelon-router
     npm install
 
-## Set the server port number
+## Copy Config File
 
-Modify the router.js file to set the two variables "configFilePath" and "serverPort". configFilePath should be the absolute path to your config.js file. serverPort determines which port the router will listen on.
-
-    nano router.js
+	cp exampleConfig.json config.json
 
 ## Set your router configuration
 
 Modify the config.js file to the settings you require. You can modify this file at any time and the router will automatically update the internal settings with the new content. This is useful if you want to add or remove routes on the fly!
 
-    nano config.js
+    nano config.json
 
-The routerTable object contains the domain names that the router will match when routing connections, then the target host and port to route to.
+# Test the router
 
-In the example config.js file included with this repo, three entries all map those domain names to the internal server running on port 9000.
-
-As you can see this allows you to run many servers on different ports and route connections to them all from a single port based upon the domain names defined in your config.js file.
-
-    routerTable = {};
-    routerTable['isocity.isogenicengine.com'] = { target:'http://localhost:9000' }
-    routerTable['isocity.co.uk'] = { target:'http://localhost:9000' }
-    routerTable['www.isocity.co.uk'] = { target:'http://localhost:9000' }
-
-## Adding error redirection
-
-When a route is unavailable such as when the target host and port do not respond (maybe the target server is down etc) then you can get the client to automatically redirect to another url. To do this, add an "errorRedirect" key to the target object like so:
-
-    routerTable['www.isocity.co.uk'] = { target:'http://localhost:9000', errorRedirect:'http://www.isogenicengine.com/demo/isocity-maintenance/' }
-
-# Run the router
-
-You can run the router via node with:
+You can run the router and see console output via node with:
 
     node router.js
+
+# Run in Production
+You can run the server in production mode which will start a background forever process:
+
+	npm start
 
 ## Updates
 
@@ -86,5 +73,3 @@ If you're feeling particularly helpful and creative, here are some thoughts for 
 This project and all code contained is Copyright 2011 Irrelon Software Limited. You are granted a license to use this code / software as you wish, free of charge and free of restrictions.
 
 If you like this project, please consider Flattr-ing it! http://bit.ly/qStA2P
-
-This project is part of the Isogenic Game Engine, an HTML5 MMO Real-time Multiplayer 2D & Isometric Canvas & DOM Game Engine for the Modern Web. www.isogenicengine.com
