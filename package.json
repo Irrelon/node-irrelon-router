@@ -13,9 +13,9 @@
     "ssl-config": "0.0.9"
   },
   "scripts": {
-    "start": "forever start router.js",
+    "start": "forever start -a --uid \"irrelon-router\" router.js",
     "test": "node router.js",
-    "stop": "forever stop router.js",
+    "stop": "forever stop irrelon-router",
     "postinstall": "sh ./install-certbot.sh"
   }
 }
