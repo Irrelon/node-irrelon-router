@@ -23,6 +23,8 @@ var sslConfig = require('ssl-config')('modern'),
 
 configFilePath = __dirname + '/config.json';
 
+// If certs fail after updating this version, run rm -rf /etc/letsencrypt to remove all cache and then start again
+
 // TODO: Need to create a timer here to run certbot-auto renew every so often
 /*
  
