@@ -4,7 +4,8 @@
 		"httpsPort": 443
 	},
 	"letsencrypt": {
-		"email": "my@email.com"
+		"email": "my@email.com",
+		"test": false
 	},
 	"routerTable": {
 		"mysubdomain.mydomain.com": {
