@@ -27,8 +27,9 @@ configFilePath = __dirname + '/config.json';
 
 // TODO: Need to create a timer here to run certbot-auto renew every so often
 /*
+ ./certbot-auto renew --webroot --webroot-path ./ssl/
  
- ./certbot-auto renew --quiet --no-self-upgrade
+ May also need these for an automatic script to stop upgrading etc: --quiet --no-self-upgrade
 
 */
 
