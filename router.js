@@ -458,10 +458,14 @@ Router.prototype.handleRequest = function (secure, req, res) {
 		stat,
 		readStream;
 	
+	if (!req || !req.connection) {
+		res.statusCode(500).send('No');
+	}
+	
 	clientIp = req.headers['x-forwarded-for'] ||
-		req.connection.remoteAddress ||
+		(req.connection && req.connection.remoteAddress ? req.connection.remoteAddress : undefined) ||
 		req.socket.remoteAddress ||
-		req.connection.socket.remoteAddress;
+		(req.connection && req.connection.socket && req.connection.socket.remoteAddress ? req.connection.socket.remoteAddress : undefined);
 	
 	parsedRoute = urlParser.parse(req.url);
 	
