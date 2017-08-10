@@ -1,0 +1,19 @@
+{
+	"email.example.cz": {
+		"target": "http://localhost:8800",
+		"ssl": {
+			"enable": true,
+			"generate": true,
+			"onlySecure": true
+		}
+	},
+	"dev.example.cz": {
+		"aliases": ["test.example.cz"],
+		"target": "http://localhost:8820",
+		"ssl": {
+			"enable": true,
+			"generate": true,
+			"onlySecure": true
+		}
+	}
+}
