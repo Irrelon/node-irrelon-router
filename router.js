@@ -63,7 +63,7 @@ const configFilePath = __dirname + '/config.json'*/
 				fs.watchFile(configFilePath, (curr, prev) => {
 					if (curr.mtime !== prev.mtime) {
 						// The file has been modified so update the router table
-						this.log(colors.cyan.bold('Router table config data has changed, updating...'))
+						this.info(colors.cyan.bold('Router table config data has changed, updating...'))
 						this.processFile()
 						//this.loadConfigData();
 					}
@@ -100,24 +100,33 @@ const configFilePath = __dirname + '/config.json'*/
 		}
 	}
 
+	/* Easy on/off logger */
 	info(...message){
 		console.info(...message)
 	}
 
+	/**
+	 * Will make router listen as soon as possible
+	 * @param {number} httpPort = 80 Http port to listen to
+	 * @param {number} httpsPort = 443 Https port to listen to
+	 */
 	listen(httpPort = 80, httpsPort = 443){
 		this.httpPort = httpPort
 		this.httpsPort = httpsPort
 		if(this.httpServer){
 			this.httpServer.listen(httpPort)
-			this.log(colors.cyan.bold('Started HTTP server, listening on port ') + colors.yellow.bold(this.httpPort))
+			this.info(colors.cyan.bold('Started HTTP server, listening on port ') + colors.yellow.bold(this.httpPort))
 
 			this.httpsServer.listen(httpsPort)
-			this.log(colors.cyan.bold('Started HTTPS server, listening on port ') + colors.yellow.bold(this.httpsPort))
-		}else{
-			this.toListen = true
+			this.info(colors.cyan.bold('Started HTTPS server, listening on port ') + colors.yellow.bold(this.httpsPort))
 		}
 	}
 
+	/**
+	 * Procesess configuration file, set up SSL if needed
+	 * @param {string}	file File location
+	 * @return {Promise}
+	 */
 	processFile(file = this.routesFile) {
 		return new Promise((resolve, reject) => {
 			this.log(`Loading configuration data from "${file}"...`);
@@ -137,7 +146,9 @@ const configFilePath = __dirname + '/config.json'*/
 	}
 
 	/**
+	 * Parse router table object into routes
 	 * @param {object}	routes
+	 * @return {Map} Map with all routes and aliases
 	 */
 	parseRoutes(routes = this.routes){
 		return Object.entries(routes).reduce((map, [url, object]) => {
@@ -154,6 +165,7 @@ const configFilePath = __dirname + '/config.json'*/
 	/**
 	 * Creates certificate for all routes, that needs it
 	 * @param {Map}		routes
+	 * @return {Promise}
 	 */
 	generateSSL(routes = this.routes){
 		return new Promise((resolve, reject) => {
@@ -170,7 +182,9 @@ const configFilePath = __dirname + '/config.json'*/
 
 
 	/**
+	 * Check for existance and validity of certificate of domain
 	 * @param {string}	url Url of route to redirect from
+	 * @return {Promise}
 	 */
 	checkCertificate(url){
 		//	TODO not ping filesystem if not needed - maybe save cert to Map?
@@ -180,6 +194,7 @@ const configFilePath = __dirname + '/config.json'*/
 	/**
 	 * Gets all certification needed
 	 * @param {string}	url Url of route to redirect from
+	 * @return {Promise}
 	 */
 	getCertificate(url){
 		return Promise.all([
@@ -215,6 +230,7 @@ const configFilePath = __dirname + '/config.json'*/
 	 * Create certificate if there is none, or is expired
 	 * @param {string}	url Url of route to redirect from
  	 * @param {Route}	route Url of route to redirect from
+	 * @return {Promise}
 	 */
 	createCertificateIfNeeded(url, route){
 		return new Promise((resolve, reject) => {
@@ -448,6 +464,9 @@ const configFilePath = __dirname + '/config.json'*/
 		return cryptoData;
 	};*/
 
+	/**
+	 * Initialises http, https and proxy servers. Listen to proxy errors and start listening, if it was allready requested
+	 */
 	initServer() {
 		this.log(colors.green.bold('Starting server...'));
 
@@ -475,8 +494,8 @@ const configFilePath = __dirname + '/config.json'*/
 		this.httpServer.on('upgrade', () => this.handleUpgrade())
 
 		//	No need to try catch if it will crash afterwards anyway
-		const proxy = httpProxy.createProxyServer({})
-		proxy.on('proxyError', (err, req, res) => {
+		this.proxy = httpProxy.createProxyServer({})
+		this.proxy.on('proxyError', (err, req, res) => {
 			const route = this.routes.get(req.headers.host)
 			if(route && route.errorRedirect){
 				res.writeHead(302, {'Location': route.errorRedirect})
@@ -488,7 +507,7 @@ const configFilePath = __dirname + '/config.json'*/
 			return true
 		});
 
-		proxy.on('error', (err, req, res) => {
+		this.proxy.on('error', (err, req, res) => {
 			// Don't console log connection resets, they are very common
 			if (err.code !== 'ECONNRESET') {
 				this.log(colors.red(`ERROR routing ${colors.bold(req.headers.host)}: `) + 'Proxy said: ', err);
@@ -498,21 +517,31 @@ const configFilePath = __dirname + '/config.json'*/
 		});
 
 		// Config data was loaded so... start the server
-		if(this.toListen){
+		if(this.httpPort && this.httpsPort){
 			this.listen(this.httpPort, this.httpsPort)
 		}
 	};
 
+	/**
+	 * Prevent serveer from listening
+	 * Can be removed
+	 */
 	stopServer() {
 		this.log(colors.red.bold('Stopping server...'));
 
 		this.httpServer.close();
-		this.log(colors.cyan.bold('Stopped HTTP server'));
+		this.info(colors.cyan.bold('Stopped HTTP server'));
 
 		this.httpsServer.close();
-		this.log(colors.cyan.bold('Stopped HTTPS server'));
+		this.info(colors.cyan.bold('Stopped HTTPS server'));
 	};
 
+	/**
+	 * Handles all requests by both server (http, https)
+	 * @param {boolean}		secure Https server sends true, http false
+	 * @param {request}		req Request
+	 * @param {response}	res Response
+	 */
 	handleRequest(secure, req, res) {
 		const clientIp = req.headers['x-forwarded-for'] ||
 			req.connection.remoteAddress ||
@@ -569,7 +598,7 @@ const configFilePath = __dirname + '/config.json'*/
 					}
 
 					if(route.enable){
-						return proxy.web(req, res, { target: route.target})
+						return this.proxy.web(req, res, { target: route.target})
 					}else{
 						this.error(colors.red('ERROR: ') + 'Cannot route ' + req.headers.host + ' because config entry is disabled.')
 					}
@@ -581,11 +610,17 @@ const configFilePath = __dirname + '/config.json'*/
 		return this.doErrorResponse(404, res)
 	}
 
+	/**
+	 * TODO: Add description
+	 * @param {request}	req Request
+	 * @param {socket}	socket Socket
+	 * @param {head}	head Head
+	 */
 	handleUpgrade(req, socket, head) {
 		const route = this.routes.get(req.headers.host)
 		if(route){
 			if(route.enable){
-				return proxy.ws(req, socket, head, { target: route.target})
+				return this.proxy.ws(req, socket, head, { target: route.target})
 			}else{
 				this.error(colors.red('ERROR: ') + 'Cannot route ' + req.headers.host + ' because config entry is disabled.')
 			}
@@ -659,37 +694,36 @@ const configFilePath = __dirname + '/config.json'*/
 		});
 	};*/
 
-	doErrorResponse(code, res, errMsg) {
+	/**
+	 * Sends error with given mesage or default onlySecure
+	 * @param {number}		code Code number of http error
+	 * @param {response}	res Response to send fromJSON
+	 * @param {string}		errMsg = Default error message
+	 */
+	doErrorResponse(code, res, errMsg = this.errors[code] || this.errors['other']) {
 		if (!errMsg) {
-			if (this.errors[code]) {
-				errMsg = this.errors[code] || this.errors['other']
-
-				if (!errMsg) {
-					switch (code) {
-						case 404:
-						errMsg = code + ' Not found'
-						break
-
-						case 403:
-						errMsg = code + ' Forbiden'
-						break
-
-						case 503:
-						errMsg = code + ' Service unavailable'
-						break
-
-						default:
-						errMsg = code + ' An error occurred'
-					}
-				}
+			switch (code) {
+				case 404:
+					errMsg = code + ' Not found'
+					break
+				case 403:
+					errMsg = code + ' Forbiden'
+					break
+				case 503:
+					errMsg = code + ' Service unavailable'
+					break
+				default:
+					errMsg = code + ' An error occurred'
 			}
 		}
 
-		res.writeHead(code, {'Content-Type': 'text/plain; charset=utf-8'})
 		if(errMsg[0] == '.'){
-			//	TODO Serve file
+			response.writeHead(code, { 'Content-Type': 'text/HTML; charset=utf-8' })
+			fs.createReadStream(filePath).pipe(response)
+		}else{
+			res.writeHead(code, { 'Content-Type': 'text/plain; charset=utf-8' })
+			res.end(errMsg)
 		}
-		res.end(errMsg)
 	}
 }
 
