@@ -34,7 +34,7 @@ const configFilePath = __dirname + '/config.json'*/
 	 */
 	constructor({
 		email,
-		production = false
+		production = false,
 		errorPages = {
 			404: 'Not found',
 			500: 'Service unavailable',
@@ -169,7 +169,7 @@ const configFilePath = __dirname + '/config.json'*/
 	 */
 	generateSSL(routes = this.routes){
 		return new Promise((resolve, reject) => {
-			const needSSL = Array.from(routes).filter(([url, route]) => route.ssl.generate)
+			const needSSL = Array.from(routes).filter(([url, route]) => route.enabled && route.ssl.generate)
 			if(needSSL.length){
 				Promise.all(needSSL.map(([url, route]) => this.createCertificateIfNeeded(url, route))).then(() => {
 					resolve(routes)
