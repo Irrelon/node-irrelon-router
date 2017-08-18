@@ -5,10 +5,10 @@ const http = require('http')
 const https = require('https')
 const urlParser = require('url')
 const httpProxy = require('http-proxy')
-
 const colors = require('colors')
+const sslConfig = require('ssl-config')('modern')
 
-/*const sslConfig = require('ssl-config')('modern')
+/*
 const async = require('async')
 const crypto = require('crypto')
 const tls = require('tls')
@@ -20,6 +20,8 @@ const fsAccess = require('fs-access')
 const mkdirp = require('mkdirp')
 const configFilePath = __dirname + '/config.json'*/
 
+const greenLock = require('greenlock')
+const dir = './ssl/'
 
 /*export*/ class Router {
 	/**
@@ -45,8 +47,8 @@ const configFilePath = __dirname + '/config.json'*/
 		watchFile = !!routesFile,
 		routes,
 	} = {}){
-		this.httpPort = void 0
-		this.httpsPort = void 0
+		//this.httpPort = void 0
+		//this.httpsPort = void 0
 		if(email == void 0){
 			throw new TypeError('Email is mandatory for Let\'s Encrypt to work.')
 		}
@@ -58,51 +60,74 @@ const configFilePath = __dirname + '/config.json'*/
 		let promise
 		if(routes){
 			this.routes = this.parseRoutes(routes)
-			promise = this.generateSSL
-			if(watchFile){
-				fs.watchFile(configFilePath, (curr, prev) => {
-					if (curr.mtime !== prev.mtime) {
-						// The file has been modified so update the router table
-						this.info(colors.cyan.bold('Router table config data has changed, updating...'))
-						this.processFile()
-						//this.loadConfigData();
-					}
-				})
-			}
+			promise = this.generateSSL()
 		}else{
-			this.routes = new Map()
+			this.routesFile = routesFile
 			if(this.routesFile){
-				promise = this.processFile
+				promise = this.processFile().then(routes => this.routes = routes)
+			}else{
+				throw new Error('Either file, or routes must be specified.')
 			}
 		}
-		Promise.all([
-			new Promise(resolve => {
-				fs.mkdir('./ssl', error => {
-					if(error.code != 'EEXIST') return reject(error)
-					resolve()
-				})
-			}),
-			promise()
-		]).then(() => this.initServer())
+		if(watchFile){
+			fs.watchFile(routesFile, (curr, prev) => {
+				if (curr.mtime !== prev.mtime) {
+					// The file has been modified so update the router table
+					this.info(colors.cyan.bold('Router table config data has changed, updating...'))
+					this.processFile().then(routes => this.routes = routes)
+					//this.loadConfigData();
+				}
+			})
+		}
+
+		const challangeStorage = new Map()
+		this.le = greenLock.create({
+			server: production?greenLock.productionServerUrl:greenLock.stagingServerUrl,
+			agreeToTerms: true,
+			configDir: './ssl',
+			fullchainPath: './ssl/:hostname/fullchain.pem',
+			privkeyPath: './ssl/:hostname/privkey.pem',
+			chainPath: './ssl/:hostname/chain.pem',
+			certPath: './ssl/:hostname/cert.pem',
+			rsaKeySize: 2048,
+			debug: !production
+		})
+		/*this.le = greenLock.create({
+			server: production?greenLock.productionServerUrl:greenLock.stagingServerUrl,
+			store: require('le-store-certbot').create({ configDir: dir, debug: !production }),
+			challenges: {
+				'http-01': leHttpChallenge,
+				'tls-sni-01': leSniChallenge,
+				'tls-sni-02': leSniChallenge
+			},
+			challengeType: 'http-01',
+			agreeToTerms: true,
+			debug: !production,
+			sni: require('le-sni-auto').create({}),
+			debug: false,
+			log: (...messages) => this.log(...messages)
+		})*/
+
+		promise.then(routes => this.initServer())
 	}
 
 	/* Easy on/off logger */
-	error(...mesage){
+	error(...messages){
 		if(this.toLog == 'all'){
-			console.error(...message)
+			console.error(...messages)
 		}
 	}
 
 	/* Easy on/off logger */
-	log(...mesage){
+	log(...messages){
 		if(this.toLog != 'info'){
-			console.log(...message)
+			console.log(...messages)
 		}
 	}
 
 	/* Easy on/off logger */
-	info(...message){
-		console.info(...message)
+	info(...messages){
+		console.info(...messages)
 	}
 
 	/**
@@ -110,7 +135,7 @@ const configFilePath = __dirname + '/config.json'*/
 	 * @param {number} httpPort = 80 Http port to listen to
 	 * @param {number} httpsPort = 443 Https port to listen to
 	 */
-	listen(httpPort = 80, httpsPort = 443){
+	listen(httpPort = this.httpPort || 80, httpsPort = this.httpsPort || 443){
 		this.httpPort = httpPort
 		this.httpsPort = httpsPort
 		if(this.httpServer){
@@ -123,26 +148,24 @@ const configFilePath = __dirname + '/config.json'*/
 	}
 
 	/**
-	 * Procesess configuration file, set up SSL if needed
+	 * Procesess router table file, set up SSL if needed
 	 * @param {string}	file File location
-	 * @return {Promise}
+	 * @return {Promise<Map>}
 	 */
 	processFile(file = this.routesFile) {
 		return new Promise((resolve, reject) => {
-			this.log(`Loading configuration data from "${file}"...`);
+			this.log(`Loading configuration data from "${file}"`);
 
 			fs.readFile(file, 'utf8', (err, data) => {
 				if (err) return reject(err)
 				try {
-					let routes = JSON.parse(data)
+					var routes = JSON.parse(data)
 				} catch(err) {
 					return reject(err)
 				}
 				resolve(routes)
 			})
-		}).then(routes => this.parseRoutes(routes)).then(routes => this.generateSSL(routes)).catch(error => {
-			console.error(error)
-		})
+		}).then(routes => this.parseRoutes(routes)).then(routes => this.generateSSL(routes)).catch(error => this.error(error))
 	}
 
 	/**
@@ -151,9 +174,10 @@ const configFilePath = __dirname + '/config.json'*/
 	 * @return {Map} Map with all routes and aliases
 	 */
 	parseRoutes(routes = this.routes){
-		return Object.entries(routes).reduce((map, [url, object]) => {
-			//const route = Route.fromJSON(object)
-			const route = object
+		//console.log('parseRoutes', routes)
+		return Object.keys(routes).reduce((map, url) => {
+			const object = routes[url]
+			const route = Router.createRoute(object)
 			map.set(url, route)
 			if(Array.isArray(object.aliases)){
 				object.aliases.forEach(url => map.set(url, route))
@@ -165,15 +189,14 @@ const configFilePath = __dirname + '/config.json'*/
 	/**
 	 * Creates certificate for all routes, that needs it
 	 * @param {Map}		routes
-	 * @return {Promise}
+	 * @return {Promise<Map>}
 	 */
 	generateSSL(routes = this.routes){
 		return new Promise((resolve, reject) => {
 			const needSSL = Array.from(routes).filter(([url, route]) => route.enabled && route.ssl.generate)
+			//console.log('generateSSL', needSSL)
 			if(needSSL.length){
-				Promise.all(needSSL.map(([url, route]) => this.createCertificateIfNeeded(url, route))).then(() => {
-					resolve(routes)
-				})
+				Promise.all(needSSL.map(([url, route]) => this.createCertificateIfNeeded(url, route))).then(() => resolve(routes))
 			}else{
 				resolve(routes)
 			}
@@ -184,46 +207,28 @@ const configFilePath = __dirname + '/config.json'*/
 	/**
 	 * Check for existance and validity of certificate of domain
 	 * @param {string}	url Url of route to redirect from
-	 * @return {Promise}
+	 * @return {Promise<boolean>}
 	 */
 	checkCertificate(url){
-		//	TODO not ping filesystem if not needed - maybe save cert to Map?
-		return new Promise(resolve => fs.access(`path/to/certificates/#{url}/privkey.pem`, error => resolve(!error)))
+		return this.getCertificate(url).then(results => true).catch(err => false)
 	}
 
 	/**
 	 * Gets all certification needed
 	 * @param {string}	url Url of route to redirect from
-	 * @return {Promise}
+	 * @return {Promise<SSL>}
 	 */
 	getCertificate(url){
-		return Promise.all([
-			new Promise((resolve, reject) => {
-				fs.readFile(`path/to/certificates/#{url}/privkey.pem`, (error, data) => {
-					if(error) return reject(error)
-					resolve(data)
-				})
-			}),
-			new Promise((resolve, reject) => {
-				fs.readFile(`path/to/certificates/#{url}/fullchain.pem`, (error, data) => {
-					if(error) return reject(error)
-					resolve(data)
-				})
-			}),
-			new Promise((resolve, reject) => {
-				fs.readFile(`path/to/certificates/#{url}/chain.pem`, (error, data) => {
-					if(error) return reject(error)
-					resolve(data)
-				})
-			})
-		]).then(keys) => {
-			return {
-				private: keys[0],
-				fullchain: keys[1],
-				chain: keys[2],
-				other: {}	//	TODO
-			}
-		}
+		return new Promise((resolve, reject) => {
+			//	TODO this is part, that throw errors
+			this.le.check({ domains: [ url ] }).then(results => {
+				if (results){
+					resolve(results)
+				}else{
+					reject()
+				}
+			}).catch(error => reject(error))
+		})
 	}
 
 	/**
@@ -233,252 +238,45 @@ const configFilePath = __dirname + '/config.json'*/
 	 * @return {Promise}
 	 */
 	createCertificateIfNeeded(url, route){
-		return new Promise((resolve, reject) => {
+		//console.log('createCertificateIfNeeded', url, route)
+		return this.checkCertificate(url).then(exists => {
+			if(exists){
+				console.log(`${url} has allready a valid certificate`)
+				return
+			}else{
+				console.log(`Creating certificate for ${url}`)
+				return le.register({
+					domains: [ url ],
+					email: this.email,
+					agreeToTerms: true,
+					rsaKeySize: 2048
+				}).then(results => {
+					this.info(`Domain ${url} was registred and verified.`)
+					return results
+				}).catch(err => {
+					this.error('[Error]: node-greenlock/examples/standalone')
+					this.error(err.stack)
+					throw new Error('Failed to create, or verify certificate: ' + err)
+				})
 
+			}
 		})
 	}
-
-	/*checkForCerts(callback) {
-		var	waterfallArr = [];
-
-		// Push a first function that just passes the configData and routerTable
-		// to the subsequent waterfall functions
-		waterfallArr.push(finished => finished(false, this.configData, this.configData.routerTable));
-
-		// Scan router table and check if SSL cert needs generating
-		waterfallArr.push((configData, routerTable, finished) => {
-			var domain,
-				route,
-				certProcessArr = [],
-				generateGetCertFunc;
-
-			this.log('Scanning router table for SSL requirements...');
-
-			generateGetCertFunc = (domain, generate) => {
-				return finished => {
-					this.log(` - Checking ${domain} for SSL cert...`);
-					this.getCert(domain, generate, finished);
-				};
-			};
-
-			// Add new routes
-			for (domain in routerTable) {
-				if (routerTable.hasOwnProperty(domain)) {
-					route = routerTable[domain];
-
-					if (route.enabled !== false) {
-						if (route.target) {
-							this.log(colors.yellow.bold('Routing: ') + colors.green.bold(domain) + colors.yellow.bold(' => ') + colors.green.bold(route.target));
-
-							// Check if the route is secured via TLS
-							if (route.ssl && route.ssl.enable) {
-								certProcessArr.push(generateGetCertFunc(domain, route.ssl.generate));
-							}
-						} else {
-							return finished(`Route "${domain}" missing "target" property!`);
-						}
-					} else {
-						this.log(`Ignoring ${domain} because it is DISABLED`);
-					}
-				}
-			}
-
-			finished(false, configData, routerTable, certProcessArr);
-		});
-
-		// Process the certificates for all domains
-		waterfallArr.push((configData, routerTable, certProcessArr, finished) => {
-			this.log('Processing cert checks...');
-
-			if (this.configData.letsencrypt.test) {
-				this.log("+++ USING TESTING (STAGING) LETSENCRYPT SERVER +++");
-			}
-
-			async.series(certProcessArr, err => {
-				if (!err) {
-					this.log('Cert checks complete');
-					this.log(colors.yellow.bold('Router table config data updated successfully.'));
-
-					finished(false);
-				} else {
-					finished(err);
-				}
-			});
-		});
-
-		async.waterfall(waterfallArr, err => {
-			if (!err) {
-				callback(false);
-			} else {
-				this.log(colors.red('ERROR: ') + err);
-			}
-		});
-	};
-
-	getCert(domain, generate, finished) {
-		this.checkSecureContext(domain, (err, domain) => {
-			if (!err) {
-				this.log(colors.green.bold(`   - Cert for ${domain} already exists, using existing cert`));
-				this.secureContext[domain] = this.getSecureContext(domain);
-				finished(false);
-			} else {
-				this.log(colors.yellow.bold(`   - Cert for ${domain} does not yet exist`));
-				// The cert doesn't exist, are we set to generate?
-				if (generate) {
-					this.log(`   - Attempting to generate cert for ${domain}...`);
-					this.generateCert(domain, finished);
-				} else {
-					finished(`   - Unable to load ssl cert for domain: ${domain} and auto-generate is switched off!`);
-				}
-			}
-		});
-	};*/
-
-	/*generateCert(domain, finished) {
-		var	child,
-			childErr = '',
-			childHadError = false,
-			calledCallback = false,
-			args;
-
-		// We need to generate the certificates
-		if (this.configData.letsencrypt && this.configData.letsencrypt.email) {
-			this.log(`   - Certificates for ${domain} do not exist, moving to create (${this.configData.letsencrypt.email})...`);
-
-			args = [
-				'certonly',
-				'--agree-tos',
-				'--email', this.configData.letsencrypt.email,
-				'--webroot',
-				'--webroot-path', './ssl/',
-				'--domains', domain,
-				'--keep',
-				'--quiet'
-			];
-
-			if (this.configData.letsencrypt.test) {
-				args.push('--server', 'https://acme-staging.api.letsencrypt.org/directory');
-			}
-
-			// Execute letsencrypt to generate certificates
-			//this.log(`Executing: ' + 'letsencrypt certonly --agree-tos --email ' + this.configData.letsencrypt.email + ' --standalone --domains ${domain} --cert-path ./ssl/:hostname.cert.pem --fullchain-path ./ssl/:hostname.fullchain.pem --chain-path ./ssl/:hostname.chain.pem`);
-
-			child = spawn('./certbot-auto', args);
-
-			var finishFunc = (code, type) => {
-				this.log(`   - Process ${type} with code ${code}`);
-
-				if (!childHadError) {
-					if (!calledCallback) {
-						calledCallback = true;
-						/*spawnSync('cp', [
-							`/etc/letsencrypt/live/${domain}/cert.pem`,
-							`./ssl/${domain}.cert.pem`
-						]);/* /
-
-						/*spawnSync('cp', [
-							`/etc/letsencrypt/live/${domain}/chain.pem`,
-							`./ssl/${domain}.chain.pem`
-						]);/* /
-
-						/*spawnSync('cp', [
-							`/etc/letsencrypt/live/${domain}/fullchain.pem`,
-							`./ssl/${domain}.fullchain.pem`
-						]);/* /
-
-						/*spawnSync('cp', [
-							`/etc/letsencrypt/live/${domain}/privkey.pem`,
-							`./ssl/${domain}.key.pem`
-						]);/* /
-
-						this.secureContext[domain] = this.getSecureContext(domain);
-
-						this.log(colors.green.bold('   - Cert generated successfully'));
-
-						finished(false);
-					}
-				} else {
-					if (!calledCallback) {
-						calledCallback = true;
-						finished(childErr);
-					}
-				}
-			};
-
-			child.stderr.on("data", data => {
-				this.log('   - Process -> ' + data);
-				childErr += data + "\n";
-				childHadError = true;
-			});
-
-			child.on("exit", code => {
-				this.log('   - Child process exit');
-				finishFunc(code, 'exit');
-			});
-
-			child.on("close", code => {
-				this.log('   - Child process close');
-				finishFunc(code, 'close');
-			});
-
-			child.on("error", e => {
-				this.log('   - Process error: ' + e);
-				child.kill();
-
-				if (!calledCallback) {
-					finished(false);
-				}
-			});
-		} else {
-			this.log(`   - Certificates for ${domain} do not exist but could not auto-create!`, 'Config file is missing letsencrypt.email parameter!');
-			finished('   - Config file is missing letsencrypt.email parameter!');
-		}
-	};*/
-
-	/*checkSecureContext(domain, callback) {
-		this.log(`   - Checking for existing file: /etc/letsencrypt/live/${domain}/privkey.pem`);
-		fsAccess(`/etc/letsencrypt/live/${domain}/privkey.pem`, err => {
-			callback(err, domain);
-		});
-	};*/
-
-	/*getSecureContext(domain) {
-		let cryptoData;
-		const credentials = {
-			key: fs.readFileSync(`/etc/letsencrypt/live/${domain}/privkey.pem`),
-			cert: fs.readFileSync(`/etc/letsencrypt/live/${domain}/fullchain.pem`),
-			ca: fs.readFileSync(`/etc/letsencrypt/live/${domain}/chain.pem`),
-			ciphers: sslConfig.ciphers,
-			honorCipherOrder: true,
-			secureOptions: sslConfig.minimumTLSVersion
-		};
-
-		if (tls.createSecureContext) {
-			cryptoData = tls.createSecureContext(credentials);
-		} else {
-			cryptoData = crypto.createCredentials(credentials).context;
-		}
-
-		//this.log('Got crypto', cryptoData);
-
-		return cryptoData;
-	};*/
 
 	/**
 	 * Initialises http, https and proxy servers. Listen to proxy errors and start listening, if it was allready requested
 	 */
 	initServer() {
-		this.log(colors.green.bold('Starting server...'));
-
-		//	TODO: We need to generate default server certs here
+		this.log(colors.green.bold('Starting server...'))
 
 		//	TODO: Redo with Let's encrpyt
 		this.httpsServer = https.createServer({
 			SNICallback: (domain, callback) => {
 				//this.log('Getting secure context for domain: ' + domain);
 				if (callback) {
-					//this.log('Calling back with:', this.secureContext[domain]);
-					callback(null, this.secureContext[domain]);
+					this.getCertificate(domain).then(results => {
+						callback(null, results)
+					})
 				} else {
 					//this.log('Returning with:', this.secureContext[domain]);
 					return this.secureContext[domain];
@@ -487,7 +285,7 @@ const configFilePath = __dirname + '/config.json'*/
 			ciphers: sslConfig.ciphers,
 			honorCipherOrder: true,
 			secureOptions: sslConfig.minimumTLSVersion
-		}, (req, res) => this.handleRequest(true, req, res));
+		}, (req, res) => this.handleRequest(true, req, res))
 
 		this.httpServer = http.createServer((req, res) => this.handleRequest(false, req, res))
 
@@ -518,7 +316,7 @@ const configFilePath = __dirname + '/config.json'*/
 
 		// Config data was loaded so... start the server
 		if(this.httpPort && this.httpsPort){
-			this.listen(this.httpPort, this.httpsPort)
+			this.listen()
 		}
 	};
 
@@ -562,6 +360,7 @@ const configFilePath = __dirname + '/config.json'*/
 
 			fs.exists(filePath, exists => {
 				if (exists) {
+					//	TODO make async
 					stat = fs.statSync(filePath);
 
 					res.writeHead(200, {
@@ -598,7 +397,7 @@ const configFilePath = __dirname + '/config.json'*/
 					}
 
 					if(route.enable){
-						return this.proxy.web(req, res, { target: route.target})
+						return this.proxy.web(req, res, route.toProxy())
 					}else{
 						this.error(colors.red('ERROR: ') + 'Cannot route ' + req.headers.host + ' because config entry is disabled.')
 					}
@@ -611,7 +410,7 @@ const configFilePath = __dirname + '/config.json'*/
 	}
 
 	/**
-	 * TODO: Add description
+	 * Pass websockets
 	 * @param {request}	req Request
 	 * @param {socket}	socket Socket
 	 * @param {head}	head Head
@@ -620,7 +419,7 @@ const configFilePath = __dirname + '/config.json'*/
 		const route = this.routes.get(req.headers.host)
 		if(route){
 			if(route.enable){
-				return this.proxy.ws(req, socket, head, { target: route.target})
+				return this.proxy.ws(req, socket, head, route.toProxy())
 			}else{
 				this.error(colors.red('ERROR: ') + 'Cannot route ' + req.headers.host + ' because config entry is disabled.')
 			}
@@ -628,71 +427,6 @@ const configFilePath = __dirname + '/config.json'*/
 			this.error(colors.red('ERROR: ') + 'Cannot upgrade socket for websockets because the header host does not exist in the routing table!', req.headers)
 		}
 	}
-
-	/*start(done) {
-		this.secureContext = {};
-
-		async.series([
-			// Load config data
-			this.loadConfigData.bind(this),
-
-			// Setup servers
-			this.initServer.bind(this),
-
-			// Check for certificates
-			this.checkForCerts.bind(this),
-
-			// Setup file watchers
-			callback => {
-				this.log('Watching config file for changes...');
-				// Watch the config file for changes
-				fs.watchFile(configFilePath, (curr, prev) => {
-					this.configFileEvent(curr, prev);
-				});
-
-				callback(false);
-			}
-		], (err, data) => {
-			if (err) {
-				return this.log('Error starting up!', err);
-			}
-
-			// Startup complete
-			this.log(colors.cyan('Startup complete'));
-
-			if (done) { done(); }
-		});
-	};*/
-
-	/*stop(done) {
-		async.series([
-			// Setup servers
-			this.stopServer.bind(this)
-		], (err, data) => {
-			if (err) {
-				return this.log('Error stopping!', err);
-			}
-
-			this.log(colors.cyan('Stop complete'));
-
-			if (done) { done(); }
-		});
-	};
-
-	restart(done) {
-		async.series([
-			// Stop server
-			this.stopServer.bind(this),
-
-			// Load config data
-			this.loadConfigData.bind(this),
-
-			// Setup servers
-			this.initServer.bind(this)
-		], err => {
-
-		});
-	};*/
 
 	/**
 	 * Sends error with given mesage or default onlySecure
@@ -725,6 +459,10 @@ const configFilePath = __dirname + '/config.json'*/
 			res.end(errMsg)
 		}
 	}
+
+	static createRoute(route) {
+		return Route.fromJSON(route)
+	}
 }
 
 class Route {
@@ -732,7 +470,7 @@ class Route {
 		enabled = true,
 		target,
 		secure = true,
-		address = 'localhost'
+		address = 'localhost',
 		port = 8080,
 		ssl = {
 			enable: true,
@@ -747,7 +485,17 @@ class Route {
 		this.errorRedirect = errorRedirect
 	}
 
-	fromJSON(object){
+	toProxy() {
+		return { target: this.target }
+	}
+
+	static fromJSON(object){
 		return new Route(object)
 	}
 }
+
+const router = new Router({
+	email: 'akxe@example.com',
+	routesFile: './exampleConfig.json'
+})
+router.listen()

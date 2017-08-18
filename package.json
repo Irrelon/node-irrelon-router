@@ -1,7 +1,19 @@
 {
-  "name": "node-irrelon-router",
-  "version": "0.1.0",
+  "name": "node-akxe-router",
+  "version": "0.0.1",
   "dependencies": {
-    "http-proxy": "1.11.x"
+    "colors": "^1.1.2",
+    "greenlock": "^2.1.15",
+    "http-proxy": "^1.11.x",
+    "le-challenge-fs": "^2.0.8",
+    "le-challenge-sni": "^2.0.1",
+    "le-sni-auto": "^2.1.1",
+    "le-store-certbot": "^2.0.5",
+    "ssl-config": "^0.0.9"
+  },
+  "scripts": {
+    "start": "forever start -a --uid \"akxe-router\" router.js",
+    "test": "node router.js",
+    "stop": "forever stop akxe-router"
   }
 }
