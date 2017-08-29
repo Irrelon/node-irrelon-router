@@ -13,7 +13,7 @@
 			"ssl": {
 				"enable": false,
 				"generate": false,
-				"secureOnly": false
+				"onlySecure": false
 			},
 			"errorRedirect": "http://www.google.com"
 		}
