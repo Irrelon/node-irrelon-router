@@ -527,7 +527,10 @@ Router.prototype.handleRequest = function (secure, req, res) {
 							}
 							
 							// Redirect is a boolean
-							res.redirect('https://' + route.headers.host);
+							res.writeHead(302, {'Location': 'https://' + route.headers.host});
+							res.end();
+							
+							return;
 						}
 						
 						// We only allow secure connections but this is not a secure connection
