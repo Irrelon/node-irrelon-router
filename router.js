@@ -516,6 +516,20 @@ Router.prototype.handleRequest = function (secure, req, res) {
 				// Check if we only allow secure connections to this host
 				if (route.ssl && route.ssl.onlySecure) {
 					if (!secure) {
+						// Check for secure redirect
+						if (route.ssl.insecureRedirect) {
+							if (typeof route.ssl.insecureRedirect === 'string') {
+								// Redirect to URL string
+								res.writeHead(302, {'Location': route.ssl.insecureRedirect});
+								res.end();
+								
+								return;
+							}
+							
+							// Redirect is a boolean
+							res.redirect('https://' + route.headers.host);
+						}
+						
 						// We only allow secure connections but this is not a secure connection
 						return self.doErrorResponse(404, res, 'Service not available on insecure connection!');
 					}
