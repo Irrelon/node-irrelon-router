@@ -16,6 +16,26 @@
 				"onlySecure": false
 			},
 			"errorRedirect": "http://www.google.com"
+		},
+		"myothersubdomain.mydomain.com": {
+			"target": "http://localhost:10201",
+			"ssl": {
+				"enable": true,
+				"generate": true,
+				"onlySecure": true,
+				"insecureRedirect": "https://www.google.com"
+			},
+			"errorRedirect": "http://www.google.com"
+		},
+		"yetanothersubdomain.mydomain.com": {
+			"target": "http://localhost:10202",
+			"ssl": {
+				"enable": true,
+				"generate": true,
+				"onlySecure": true,
+				"insecureRedirect": true
+			},
+			"errorRedirect": "http://www.google.com"
 		}
 	},
 	"errors": {
