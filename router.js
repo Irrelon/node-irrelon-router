@@ -8,18 +8,6 @@ const httpProxy = require('http-proxy')
 const colors = require('colors')
 const sslConfig = require('ssl-config')('modern')
 
-/*
-const async = require('async')
-const crypto = require('crypto')
-const tls = require('tls')
-const //express = require('express')
-const spawn = require('child_process').spawn
-const spawnSync = require('spawn-sync')
-const path = require('path')
-const fsAccess = require('fs-access')
-const mkdirp = require('mkdirp')
-const configFilePath = __dirname + '/config.json'*/
-
 const greenLock = require('greenlock')
 const dir = './ssl/'
 

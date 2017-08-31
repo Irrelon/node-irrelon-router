@@ -1,5 +1,5 @@
 {
-  "name": "node-akxe-router",
+  "name": "node-irrelon-router",
   "version": "0.0.1",
   "dependencies": {
     "colors": "^1.1.2",
@@ -12,8 +12,8 @@
     "ssl-config": "^0.0.9"
   },
   "scripts": {
-    "start": "forever start -a --uid \"akxe-router\" router.js",
+    "start": "forever start -a --uid \"irrelon-router\" router.js",
     "test": "node router.js",
-    "stop": "forever stop akxe-router"
+    "stop": "forever stop irrelon-router"
   }
 }
