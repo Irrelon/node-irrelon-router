@@ -1,6 +1,6 @@
 {
-  "name": "node-irrelon-router",
-  "version": "0.1.0",
+  "name": "irrelon-router",
+  "version": "1.0.0",
   "dependencies": {
     "async": "^1.5.2",
     "colors": "^1.1.2",
@@ -12,6 +12,7 @@
     "spawn-sync": "^1.0.15",
     "ssl-config": "0.0.9"
   },
+  "main": "router.js",
   "scripts": {
     "start": "forever start -a --uid \"irrelon-router\" router.js",
     "test": "node router.js",
