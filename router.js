@@ -514,27 +514,35 @@ Router.prototype.handleRequest = function (secure, req, res) {
 				route.headers.host = route.headers.host || req.headers.host;
 
 				// Check if we only allow secure connections to this host
-				if (route.ssl && route.ssl.onlySecure) {
-					if (!secure) {
-						// Check for secure redirect
-						if (route.ssl.insecureRedirect) {
-							if (typeof route.ssl.insecureRedirect === 'string') {
-								// Redirect to URL string
-								res.writeHead(302, {'Location': route.ssl.insecureRedirect});
+				if (route.ssl) {
+					if (route.ssl.onlySecure) {
+						if (!secure) {
+							// Check for secure redirect
+							if (route.ssl.insecureRedirect) {
+								if (typeof route.ssl.insecureRedirect === 'string') {
+									// Redirect to URL string
+									res.writeHead(302, {'Location': route.ssl.insecureRedirect});
+									res.end();
+									
+									return;
+								}
+								
+								// Redirect is a boolean
+								res.writeHead(302, {'Location': 'https://' + route.headers.host + req.url});
 								res.end();
 								
 								return;
 							}
 							
-							// Redirect is a boolean
-							res.writeHead(302, {'Location': 'https://' + route.headers.host});
-							res.end();
-							
-							return;
+							// We only allow secure connections but this is not a secure connection
+							return self.doErrorResponse(404, res, 'Service not available on insecure connection!');
 						}
-						
-						// We only allow secure connections but this is not a secure connection
-						return self.doErrorResponse(404, res, 'Service not available on insecure connection!');
+					}
+					
+					if (secure) {
+						// Add headers that internal services might need (like gitlab)
+						req.headers['x-forwarded-ssl'] = "on";
+						req.headers['x-forwarded-port'] = self.configData.server.httpsPort;
 					}
 				}
 
