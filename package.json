@@ -1,6 +1,6 @@
 {
   "name": "irrelon-router",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "dependencies": {
     "async": "^1.5.2",
     "colors": "^1.1.2",
